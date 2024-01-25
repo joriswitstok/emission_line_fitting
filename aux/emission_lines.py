@@ -6,106 +6,31 @@ Module for emission line class and database.
 Joris Witstok, 18 May 2020
 """
 
-import os
-
 import numpy as np
-
-from aux.roman import int_to_roman
-
 import seaborn as sns
 
-# Line wavelengths and names
-lines = ["Lya", "CIII", "CIV", "OIII", "HeII", "SiIII", "Halpha", "Hbeta", "OII", "NII", "SII"]
+# Convert to and from roman numerals (from http://code.activestate.com/recipes/81611-roman-numerals/)
 
-# Lya line
-Lyaline_UV = ["Lya"]
-Lyaline_wl = {"Lya": 1215.67}
-Lyaline_wls = {"Lya": (1215.67,)}
-Lyaline_col = {"Lya": sns.color_palette("Set2", 8)[3]}
-Lyaline_lab = {"Lya": r"Ly$\mathrm{\alpha}$"}
-Lyaline_slab = {"Lya": r"Ly \alpha"}
+numeral_map = tuple(zip(
+    (1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1),
+    ('M', 'CM', 'D', 'CD', 'C', 'XC', 'L', 'XL', 'X', 'IX', 'V', 'IV', 'I')
+))
 
-# Lya line for stack of all objects (without redshift bins)
-aLyaline = ["aLya"]
-aLyaline_wl = {"aLya": 1215.67}
-aLyaline_wls = {"aLya": (1215.67,)}
-aLyaline_col = {"aLya": sns.color_palette("Set2", 8)[3]}
-aLyaline_lab = {"aLya": r"Ly$\mathrm{\alpha}$"}
-aLyaline_slab = {"aLya": r"Ly \alpha"}
+def int_to_roman(i):
+    result = []
+    for integer, numeral in numeral_map:
+        count = i // integer
+        result.append(numeral * count)
+        i -= integer * count
+    return ''.join(result)
 
-# Other nebular lines
-# Sources: Morton (1991), https://ui.adsabs.harvard.edu/abs/1991ApJS...77..119M/abstract), https://physics.nist.gov/PhysRefData/ASD/lines_form.html
-nlines_UV = ["CIII", "CIV", "OIII", "HeII", "SiIII", "NV"]
-nline_wl = {"CIII": 1907.7085, "CIV": 1549.5,
-            "OIII": 1663.47, "HeII": 1640.4, "SiIII": 1887.0, "NV": 1240.146} # Ly-a/CIII/CIV/OIII/HeII/SiIII/NV central wavelength in Angstrom
-nline_wls = {"CIII": (1906.683, 1908.734), "CIV": (1548.195, 1550.77), "OIII": (1660.809, 1666.150),
-            "HeII": (1640.4,), "SiIII": (1881.96, 1892.03), "NV": (1240.146,)} # Ly-a/CIII/CIV/OIII/HeII/SiIII/NV specific wavelength(s) in Angstrom
-nline_col = {"CIII": sns.color_palette("Set2", 8)[1], "CIV": sns.color_palette("Set2", 8)[5], "OIII": sns.color_palette("Set2", 8)[4],
-            "HeII": sns.color_palette("Set2", 8)[0], "SiIII": sns.color_palette("Set2", 8)[2], "NV": sns.color_palette("Set1", 9)[0]}
-nline_lab = {"CIII": r"$\mathrm{C \, III}$", "CIV": r"$\mathrm{C \, IV}$", "OIII": r"$\mathrm{O \, III]}$",
-            "HeII": r"$\mathrm{He \, II}$", "SiIII": r"$\mathrm{Si \, III}$", "NV": r"$\mathrm{N \, V}$"}
-nline_slab = {"CIII": r"C III", "CIV": r"C IV", "OIII": r"O III",
-            "HeII": r"He II", "SiIII": r"Si III", "NV": r"N V"}
-
-# Near-UV lines (source: https://physics.nist.gov/PhysRefData/ASD/lines_form.html)
-lines_NUV = ["MgII"]
-line_wl_NUV = {"MgII": 2796.352}
-line_wls_NUV = {"MgII": (2796.352,)}
-line_col_NUV = {"MgII": sns.color_palette("Set1", 9)[3]}
-line_lab_NUV = {"MgII": r"\mathrm{Mg \, II}"}
-line_slab_NUV = {"MgII": r"Mg II"}
-
-# Stellar lines
-slines_UV = ["sCIII", "sOIV", "sSV"]
-sline_wl = {"sCIII": 1175.71, "sOIV": 1343.25, "sSV": 1501.76}
-sline_wls = {"sCIII": (1175.71,), "sOIV": (1342.99, 1343.51), "sSV": (1501.76,)}
-sline_col = {"sCIII": sns.color_palette("Set3", 14)[3], "sOIV": sns.color_palette("Set3", 14)[9], "sSV": sns.color_palette("Set3", 14)[7]}
-sline_lab = {"sCIII": r"$\mathrm{C \, III}$ (st. abs.)", "sOIV": r"$\mathrm{O \, IV}$ (st. abs.)", "sSV": r"$\mathrm{S \, V}$ (st. abs.)"}
-sline_slab = {"sCIII": r"C III (st. abs.)", "sOIV": r"O IV (st. abs.)", "sSV": r"S V (st. abs.)"}
-
-# Other absorption lines
-alines_UV = ["sSiIIa", "sSiIIb", "sCII", "sSiIIc"]
-aline_wl = {"sSiIIa": 1260.4221, "sSiIIb": 1303.27, "sCII": 1334.5323, "sSiIIc": 1526.7066}
-aline_wls = {"sSiIIa": (1260.4221,), "sSiIIb": (1303.27,), "sCII": (1334.5323,), "sSiIIc": (1526.7066,)}
-aline_col = {"sSiIIa": sns.color_palette("Set3", 14)[8], "sSiIIb": sns.color_palette("Set3", 14)[8],
-            "sCII": sns.color_palette("Set3", 14)[11], "sSiIIc": sns.color_palette("Set3", 14)[8]}
-aline_lab = {"sSiIIa": r"$\mathrm{Si \, II}$ (abs.)", "sSiIIb": r"$\mathrm{O \, I + Si \, II}$ (abs.)", "sCII": r"$\mathrm{C \, II}$ (abs.)", "sSiIIc": r"$\mathrm{Si \, II}$ (abs.)"}
-aline_slab = {"sSiIIa": r"Si II (abs.)", "sSiIIb": r"O I + Si II (abs.)", "sCII": r"C II (abs.)", "sSiIIc": r"Si II (abs.)"}
-
-UV_lines = Lyaline_UV + nlines_UV + slines_UV + alines_UV
-UV_wl = {**Lyaline_wl, **aLyaline_wl, **nline_wl, **sline_wl, **aline_wl}
-UV_wls = {**Lyaline_wls, **aLyaline_wls, **nline_wls, **sline_wls, **aline_wls}
-UV_col = {**Lyaline_col, **aLyaline_col, **nline_col, **sline_col, **aline_col}
-
-UV_lines_all = UV_lines + lines_NUV
-UV_wl_all = {**UV_wl, **line_wl_NUV}
-UV_wls_all = {**UV_wls, **line_wls_NUV}
-UV_col_all = {**UV_col, **line_col_NUV}
-
-# Optical lines
-
-lines_il = ["OIII_opt", "OII", "Halpha", "Hbeta"]
-lines_opt = ["OIII_opt", "OII", "Halpha", "Hbeta", "NII", "SII"]
-line_opt_wl = {"OIII_opt": 5008.24, "OII": 3728.4835, "Halpha": 6564.5, "Hbeta": 4861.4,
-            "NII": 6549.86, "SII": 6717.395} # OIII/Ha/Hb/OII/NII/SII central wavelength in Angstrom
-line_opt_wls = {"OIII_opt": (4932.603, 4960.295, 5008.24,), "Halpha": (6564.5,), "Hbeta": (4861.4,),
-            "OII": (3727.092, 3729.875), "NII": (6549.86, 6585.27), "SII": (6716.47, 6718.32)} # OIII/Ha/Hb/OII/NII/SII specific wavelength(s) in Angstrom
-line_opt_col = {"OIII_opt": sns.color_palette("Set1", 9)[2], "OII": sns.color_palette("Set1", 9)[3],
-                "Halpha": sns.color_palette("Set1", 9)[0], "Hbeta": sns.color_palette("Set1", 9)[1]}
-line_opt_lab = {"OIII_opt": r"$\mathrm{[O \, III]}$", "OII": r"$\mathrm{[O \, II]}$",
-                "NII": r"$\mathrm{[N \, II]}$", "SII": r"$\mathrm{[S \, II]}$",
-                "Halpha": r"H$\mathrm{\alpha}$", "Hbeta": r"H$\mathrm{\beta}$"}
-line_opt_slab = {"OIII_opt": r"[O III]", "OII": r"[O II]", "[NII]": r"[N II]", "SII": r"[S II]",
-                    "Halpha": r"H \alpha", "Hbeta": r"H \beta"}
-
-lines_all = UV_lines_all + lines_il
-wl_all = {**UV_wl_all, **line_opt_wl}
-wls_all = {**UV_wls_all, **line_opt_wls}
-col_all = {**UV_col_all, **line_opt_col}
-
-line_lab = {**Lyaline_lab, **aLyaline_lab, **nline_lab, **line_lab_NUV, **sline_lab, **aline_lab, **line_opt_lab}
-
-line_slab = {**Lyaline_slab, **aLyaline_slab, **nline_slab, **line_slab_NUV, **sline_slab, **aline_slab, **line_opt_slab}
+def roman_to_int(n):
+    i = result = 0
+    for integer, numeral in numeral_map:
+        while n[i:i + len(numeral)] == numeral:
+            result += integer
+            i += len(numeral)
+    return result
 
 
 
@@ -497,30 +422,6 @@ class line_list(line):
                 self.__dict__[key] = [l.__dict__[key] for l in self.list]
 
 
-
-sct_ldict = {
-                "Lya": ("HI", 1216),
-                "aLya": ("HI", 1216),
-                "CIII": ("CIII", 1909),
-                "OIII": ("OIII", 1666),
-                "HeII": ("HeII", 1640),
-                "CIV": ("CIV", 1548),
-                "SiIII": ("SiIII", 1887),
-                "NV": ("NV", 1241),
-                "sCIII": ("CIII", 1176),
-                "sOIV": ("OIV", 1343),
-                "sSV": ("SV", 1502),
-                "sSiIIa": ("SiII", 1260),
-                "sSiIIb": ("SiII", 1303),
-                "sSiIIc": ("SiII", 1527),
-                "sCII": ("CII", 1335),
-                "OIII_opt": ("OIII", 4967),
-                "OII": ("OII", 3728),
-                "Halpha": ("HI", 6565),
-                "Hbeta": ("HI", 4863),
-                "NII": ("NII", 6568),
-                "SII": ("SII", 6725)
-            }
 
 if __name__ == "__main__":
     ll = line_list([line(*args) for args in all_lines_lib])
