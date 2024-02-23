@@ -25,7 +25,8 @@ def import_corner():
     return corner
 
 class MN_emission_line_solver(Solver):
-    def __init__(self, line_list, wl_obs_list, flux_list, flux_err_list, cont_flux=None, conv=1, sigma_default=100.0,
+    def __init__(self, line_list, wl_obs_list, flux_list, flux_err_list,
+                    cont_flux=None, min_amplitude=None, max_amplitude=None, sigma_default=100.0,
                     spectral_resolution_list=None, full_convolution=False,
                     redshift_prior={"type": "uniform", "params": [0, 20]}, sigma_prior={"type": "uniform", "params": [0, 500]},
                     res_scale_function=None, res_scale_priors=None,
@@ -48,6 +49,8 @@ class MN_emission_line_solver(Solver):
         self.flux_list = flux_list
         self.flux_err_list = flux_err_list
         self.cont_flux = cont_flux
+        self.min_amplitude = 1e-4 if min_amplitude is None else min_amplitude
+        self.max_amplitude = 1e4 if max_amplitude is None else max_amplitude
         self.sigma_default = sigma_default
         
         for l in self.line_list:
@@ -64,7 +67,6 @@ class MN_emission_line_solver(Solver):
             if hasattr(l, "coupled_sigma_v_line"):
                 assert not l.coupled_sigma_v_line.upper_limit
         
-        self.conv = conv
         self.n_obs = len(self.wl_obs_list)
         assert len(self.flux_list) == self.n_obs and len(self.flux_err_list) == self.n_obs
         
@@ -131,7 +133,7 @@ class MN_emission_line_solver(Solver):
             ax_lab.set_zorder(-1)
             
             ax_lab.set_xlabel(r"$\lambda_\mathrm{obs} \, (\mathrm{\AA})$", labelpad=20)
-            ax_lab.set_ylabel(r"$F_\lambda \, (10^{{{:d}}} \, \mathrm{{erg \, s^{{-1}} \, cm^{{-2}} \, \AA^{{-1}}}})$".format(int(-np.log10(self.conv))), labelpad=30)
+            ax_lab.set_ylabel(r"$F_\lambda$", labelpad=30)
 
             axes[0, 0].annotate(text=r"Intrinsic ($R = 100000$)", xy=(0, 1), xytext=(4, -4),
                                     xycoords="axes fraction", textcoords="offset points",
@@ -248,7 +250,7 @@ class MN_emission_line_solver(Solver):
                 (1.0 - np.pi/4.0)*(np.sqrt(2.0/np.pi)*delta)**3/(1.0-2.0/np.pi*delta**2) - np.sign(a_asym)/2.0 * np.exp(-2.0*np.pi/np.abs(a_asym)))
             return A * skewnorm.pdf(x, a=a_asym, loc=x0-m, scale=sigma_scaled) + y0
 
-    def line_profile(self, x, l, R_idx=None):
+    def line_profile(self, x, l):
         assert hasattr(l, "line_params")
         sigma = l.line_params["sigma_l_deconvolved" if self.full_convolution else "sigma_l_convolved"]
         
@@ -264,8 +266,15 @@ class MN_emission_line_solver(Solver):
         if self.cont_flux is None:
             cont_flux = np.tile(np.nan, wl_emit.size)
         elif isinstance(self.cont_flux, dict):
-            # Model continuum as a power-law slope (in the rest frame)
-            cont_flux = np.where(wl_emit < 1215.6701, 0.0, self.cont_flux['C'] * (wl_emit/self.cont_flux["wl0"])**self.cont_flux["beta"])
+            if self.cont_flux["type"] == "power-law":
+                # Model continuum as a power-law slope (in the rest frame)
+                cont_flux = np.where(wl_emit < 1215.6701, 0.0, self.cont_flux['C'] * (wl_emit/self.cont_flux["wl0"])**self.cont_flux["beta"])
+            elif self.cont_flux["type"] == "SED_model":
+                # Interpolate intrinsic spectrum from a given SED model
+                cont_flux = spectres(wl_emit, self.cont_flux["wl_emit_intrinsic"], self.cont_flux["spectrum_intrinsic"])
+            elif self.cont_flux["type"] == "function":
+                # Interpolate intrinsic spectrum from a given SED model
+                cont_flux = self.cont_flux["function"](wl_emit)
         else:
             # Calculate observed continuum at given rest-frame wavelengths, then shift flux density into rest frame
             assert z is not None
@@ -277,6 +286,10 @@ class MN_emission_line_solver(Solver):
         if prior["type"].lower() == "uniform":
             minimum = prior["params"][0]
             maximum = prior["params"][1]
+        elif prior["type"].lower() == "loguniform":
+            # Set the minimum/maximum value as the edge of the uniform distribution or as a 3σ outlier
+            minimum = 10**(prior["params"][0])
+            maximum = 10**(prior["params"][1])
         elif prior["type"].lower() == "normal":
             # Set the minimum/maximum value as the edge of the uniform distribution or as a 3σ outlier
             minimum = prior["params"][0] - 3 * prior["params"][1]
@@ -695,8 +708,6 @@ class MN_emission_line_solver(Solver):
 
         for l in self.line_list:
             if not l.upper_limit:
-                z_min, z_max = self.get_prior_extrema(self.redshift_prior)
-                
                 if hasattr(l, "asymmetric_Gaussian"):
                     self.priors.append({"type": l.asymmetric_Gaussian["prior"]["type"], "params": l.asymmetric_Gaussian["prior"]["params"]})
                     self.params.append("a_asym_{}".format(l.name))
@@ -704,30 +715,14 @@ class MN_emission_line_solver(Solver):
                 if hasattr(l, "fixed_line_ratio"):
                     assert not hasattr(l, "var_line_ratio")
                 elif hasattr(l, "var_line_ratio"):
-                    self.priors.append({"type": "uniform", "params": [l.var_line_ratio["ratio_min"], l.var_line_ratio["ratio_max"]]})
+                    self.priors.append({"type": l.var_line_ratio.get("prior_type", "uniform"), "params": [l.var_line_ratio["ratio_min"], l.var_line_ratio["ratio_max"]]})
                     self.params.append("relative_amplitude_{}".format(l.name))
                 else:
-                    max_amplitude = None
-                    for wl_obs, flux, spectral_resolution in zip(self.wl_obs_list, self.flux_list, self.spectral_resolution_list):
-                        R_min = np.min(spectral_resolution)
-                        dv_min, dv_max = self.get_prior_extrema(l.delta_v_prior) if hasattr(l, "delta_v_prior") else (-max(3000.0, 3*299792.458/R_min), max(3000.0, 3*299792.458/R_min))
-                        wl_obs_min = (1.0 + z_min) * l.wl / (1.0 - dv_min/299792.458)
-                        wl_obs_minidx = max(0, np.argmin(np.abs(wl_obs - wl_obs_min)) - 1)
-                        wl_obs_max = (1.0 + z_max) * l.wl / (1.0 - dv_max/299792.458)
-                        wl_obs_maxidx = min(wl_obs.size - 1, np.argmin(np.abs(wl_obs - wl_obs_max)) + 1)
-
-                        if wl_obs_min < np.max(wl_obs) and wl_obs_max > np.min(wl_obs):
-                            sigma_prior = l.sigma_v_prior if hasattr(l, "sigma_v_prior") else self.sigma_prior
-                            sigma_max = (1.0 + z_max) * np.sqrt((l.wl / (299792.458/self.get_prior_extrema(sigma_prior)[1] - 1.0))**2 + (l.wl / R_min / (2.0 * np.sqrt(2.0 * np.log(2))))**2)
-                
-                            max_flux = np.max([np.nanmax(flux[wl_obs_minidx:wl_obs_maxidx+1])])
-                            max_amplitude = max_flux * sigma_max * 2.0 * np.sqrt(2.0 * np.log(2))
-                    
-                    if max_amplitude:
-                        self.priors.append({"type": "uniform", "params": [0, max_amplitude]})
-                        self.params.append("amplitude_{}".format(l.name))
+                    if hasattr(l, "amplitude_prior"):
+                        self.priors.append({"type": l.amplitude_prior["type"], "params": l.amplitude_prior["params"]})
                     else:
-                        raise ValueError("Warning: {} is not observed in the provided spectrum".format(l.estlabel))
+                        self.priors.append({"type": "loguniform", "params": [np.log10(self.min_amplitude), np.log10(self.max_amplitude)]})
+                    self.params.append("amplitude_{}".format(l.name))
                 
                 if hasattr(l, "delta_v_prior") and not l.delta_v_prior["type"].lower() == "fixed":
                     self.priors.append(l.delta_v_prior)
@@ -749,6 +744,9 @@ class MN_emission_line_solver(Solver):
             if self.priors[di]["type"].lower() == "uniform":
                 # Uniform distribution as prior
                 cube[di] = cube[di] * (self.priors[di]["params"][1] - self.priors[di]["params"][0]) + self.priors[di]["params"][0]
+            elif self.priors[di]["type"].lower() == "loguniform":
+                # Log-uniform distribution as prior
+                cube[di] = 10**(cube[di] * (self.priors[di]["params"][1] - self.priors[di]["params"][0]) + self.priors[di]["params"][0])
             elif self.priors[di]["type"].lower() == "normal":
                 # Normal distribution as prior
                 cube[di] = norm.ppf(cube[di], loc=self.priors[di]["params"][0], scale=self.priors[di]["params"][1])
