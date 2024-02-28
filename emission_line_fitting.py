@@ -7,6 +7,7 @@ Joris Witstok, 2023
 """
 
 import numpy as np
+sigma2fwhm = (2.0 * np.sqrt(2.0 * np.log(2)))
 
 from pymultinest.solve import Solver
 from scipy.stats import norm, skewnorm, gamma
@@ -27,11 +28,11 @@ def import_corner():
 class MN_emission_line_solver(Solver):
     def __init__(self, line_list, wl_obs_list, flux_list, flux_err_list,
                     cont_flux=None, min_amplitude=None, max_amplitude=None, sigma_default=100.0,
-                    spectral_resolution_list=None, full_convolution=False,
+                    spectral_resolution_list=None, full_convolution=False, def_n_res=5.0,
                     redshift_prior={"type": "uniform", "params": [0, 20]}, sigma_prior={"type": "uniform", "params": [0, 500]},
                     res_scale_function=None, res_scale_priors=None,
                     mpi_run=False, mpi_comm=None, mpi_rank=0, mpi_ncores=1, mpi_synchronise=None,
-                    fit_name=None, print_setup=True, plot_setup=False, mpl_style=None, **solv_kwargs):
+                    fit_name=None, print_setup=True, plot_setup=False, mpl_style=None, verbose=True, **solv_kwargs):
         self.mpi_run = mpi_run
         self.mpi_comm = mpi_comm
         self.mpi_rank = mpi_rank
@@ -40,15 +41,13 @@ class MN_emission_line_solver(Solver):
 
         self.fit_name = fit_name
         self.mpl_style = mpl_style
-        if self.mpi_rank == 0:
+        self.verbose = verbose
+        if self.verbose and self.mpi_rank == 0:
             print("Initialising MultiNest Solver object{}{}...".format(" for {}".format(self.fit_name) if self.fit_name else '',
                                                                         " with {} cores".format(self.mpi_ncores) if self.mpi_run else ''))
 
         self.line_list = line_list
-        self.wl_obs_list = wl_obs_list
-        self.flux_list = flux_list
-        self.flux_err_list = flux_err_list
-        self.cont_flux = cont_flux
+        
         self.min_amplitude = 1e-4 if min_amplitude is None else min_amplitude
         self.max_amplitude = 1e4 if max_amplitude is None else max_amplitude
         self.sigma_default = sigma_default
@@ -67,18 +66,12 @@ class MN_emission_line_solver(Solver):
             if hasattr(l, "coupled_sigma_v_line"):
                 assert not l.coupled_sigma_v_line.upper_limit
         
-        self.n_obs = len(self.wl_obs_list)
-        assert len(self.flux_list) == self.n_obs and len(self.flux_err_list) == self.n_obs
-        
-        if spectral_resolution_list is None:
-            # Default to a spectral resolution of R = 100000
-            spectral_resolution_list = [np.tile(1e5, wl_obs.size) for wl_obs in self.wl_obs_list]
-        self.spectral_resolution_list = spectral_resolution_list
-        self.med_spectral_resolution_list = [np.median(spectral_resolution) for spectral_resolution in self.spectral_resolution_list]
-        
         self.full_convolution = full_convolution
+        self.def_n_res = def_n_res
         
         self.redshift_prior = redshift_prior
+        self.fixed_redshift = self.redshift_prior["params"][0] if self.redshift_prior["type"].lower() == "fixed" else None
+        
         self.sigma_prior = sigma_prior
         self.res_scale_function = res_scale_function
         if res_scale_priors is None:
@@ -87,7 +80,9 @@ class MN_emission_line_solver(Solver):
         else:
             self.res_scale_priors = res_scale_priors
 
+        self.set_cont_flux(cont_flux)
         self.set_prior()
+        self.set_observations(wl_obs_list, flux_list, flux_err_list, spectral_resolution_list)
 
         if print_setup or plot_setup:
             mean_params = [np.mean(self.get_prior_extrema(prior)) for prior in self.priors]
@@ -119,7 +114,6 @@ class MN_emission_line_solver(Solver):
 
             n_rows = 1 + self.n_obs
             n_cols = len(params_list)
-            model_list = [self.create_model(params)[0] for params in params_list]
 
             fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, sharex=True, sharey="row", squeeze=False,
                                         gridspec_kw=dict(hspace=0, wspace=0), figsize=(8.27*n_cols/2, 11.69*n_rows/4))
@@ -143,13 +137,15 @@ class MN_emission_line_solver(Solver):
             wl_emit = np.arange(np.min([0.95*l.wl for l in self.line_list]), np.max([1.05*l.wl for l in self.line_list]), np.min([l.wl for l in self.line_list])/5000.0)
             
             for coli, params, label in zip(range(n_cols), params_list, labels_list):
-                z = params[self.params.index("redshift")] if "redshift" in self.params else self.redshift_prior["params"][0]
+                z = self.fixed_redshift if self.fixed_redshift else params[self.params.index("redshift")]
                 axes[0, coli].plot(wl_emit*(1.0 + z), self.create_model(params, wl_emit=wl_emit, R=1e5), drawstyle="steps-mid",
                                     color=colors[0], alpha=0.8, label=label)
 
             for ax in axes[0]:
                 ax.axhline(y=0, color='k', alpha=0.8)
                 ax.legend(loc="upper right", fontsize="xx-small")
+            
+            models_list = [self.create_model(params)[0] for params in params_list]
             
             for oi, wl_obs, flux, flux_err, spectral_resolution, axes_row in zip(range(self.n_obs), self.wl_obs_list,
                                                                                     self.flux_list, self.flux_err_list,
@@ -166,10 +162,17 @@ class MN_emission_line_solver(Solver):
                     ax.fill_between(wl_obs, (flux-flux_err), (flux+flux_err),
                                     step="mid", alpha=0.1, edgecolor="None", facecolor=colors[1+oi], zorder=4)
                     
-                    ax.plot(wl_obs, model_list[coli][oi], color=colors[0], drawstyle="steps-mid", alpha=0.8)
+                    ax.plot(wl_obs, models_list[coli][oi], color=colors[0], drawstyle="steps-mid", alpha=0.8)
+                    
+                    dl_obs = np.interp(wl_obs, 0.5*(wl_obs[1:]+wl_obs[:-1]), np.diff(wl_obs))
+                    ax.fill_between(np.vstack((wl_obs-0.5*dl_obs, wl_obs+0.5*dl_obs)).reshape((-1,), order='F'), y1=0, y2=1,
+                                    where=np.vstack((self.fit_select_list[oi], self.fit_select_list[oi])).reshape((-1,), order='F'),
+                                    transform=ax.get_xaxis_transform(), edgecolor="None", facecolor="grey", alpha=0.4)
                     
                     if coli == 1:
                         ax.legend(loc="upper right", fontsize="xx-small")
+                
+                ax.set_ylim(-2*np.nanmean(flux_err), np.nanmax(flux+flux_err))
             
             if figname:
                 fig.savefig(figname, bbox_inches="tight")
@@ -250,35 +253,145 @@ class MN_emission_line_solver(Solver):
                 (1.0 - np.pi/4.0)*(np.sqrt(2.0/np.pi)*delta)**3/(1.0-2.0/np.pi*delta**2) - np.sign(a_asym)/2.0 * np.exp(-2.0*np.pi/np.abs(a_asym)))
             return A * skewnorm.pdf(x, a=a_asym, loc=x0-m, scale=sigma_scaled) + y0
 
-    def line_profile(self, x, l):
+    def line_profile(self, wl, l):
         assert hasattr(l, "line_params")
-        sigma = l.line_params["sigma_l_deconvolved" if self.full_convolution else "sigma_l_convolved"]
         
         if hasattr(l, "asymmetric_Gaussian"):
-            line_f_l_rest = self.asym_Gaussian(A=l.line_params["amplitude"], x0=l.line_params["x0"], y0=0, sigma=sigma,
-                                                a_asym=l.line_params["a_asym"], x=x)
+            line_f_l_rest = self.asym_Gaussian(A=l.line_params["amplitude"], x0=l.line_params["wl0"], y0=0, sigma=l.line_params["sigma_l"],
+                                                a_asym=l.line_params["a_asym"], x=wl)
         else:
-            line_f_l_rest = self.Gaussian(A=l.line_params["amplitude"], x0=l.line_params["x0"], y0=0, sigma=sigma, x=x)
+            line_f_l_rest = self.Gaussian(A=l.line_params["amplitude"], x0=l.line_params["wl0"], y0=0, sigma=l.line_params["sigma_l"], x=wl)
         
         return line_f_l_rest
 
-    def get_cont_flux(self, wl_emit, z=None):
-        if self.cont_flux is None:
+    def set_observations(self, wl_obs_list, flux_list, flux_err_list, spectral_resolution_list):
+        self.wl_obs_list = wl_obs_list
+        self.flux_list = flux_list
+        self.flux_err_list = flux_err_list
+        
+        self.n_obs = len(self.wl_obs_list)
+        assert len(self.flux_list) == self.n_obs and len(self.flux_err_list) == self.n_obs
+        
+        if spectral_resolution_list is None:
+            # Default to a spectral resolution of R = 100000
+            spectral_resolution_list = [np.tile(1e5, wl_obs.size) for wl_obs in self.wl_obs_list]
+        self.spectral_resolution_list = spectral_resolution_list
+        self.med_spectral_resolution_list = [np.median(spectral_resolution) for spectral_resolution in self.spectral_resolution_list]
+
+        if self.fixed_redshift:
+            self.wl_emit_list = []
+            self.fit_select_list = []
+            self.n_res_list = []
+            self.wl_emit_model_list = []
+            self.model_profile_list = []
+
+            for oi in range(self.n_obs):
+                wl_emit = self.wl_obs_list[oi] / (1.0 + self.fixed_redshift)
+                self.wl_emit_list.append(wl_emit)
+                
+                n_res_mult = np.tile(1.0, len(self.line_list))
+                fit_select = np.tile(False, wl_emit.size)
+                
+                minmax_params = [self.get_prior_extrema(prior) for prior in self.priors]
+                min_spectral_resolution = self.get_spectral_resolution(theta=None, oi=oi, resolution_extreme="min")[1]
+                max_spectral_resolution = self.get_spectral_resolution(theta=None, oi=oi, resolution_extreme="max")[1]
+                
+                for li, l in enumerate(self.line_list):
+                    if l.upper_limit:
+                        continue
+                    R_min = np.interp(l.wl, wl_emit, min_spectral_resolution)
+                    min_line_params = self.get_line_params([minmax_param[0] for minmax_param in minmax_params], l=l, R=R_min)
+                    max_line_params = self.get_line_params([minmax_param[1] for minmax_param in minmax_params], l=l, R=R_min)
+                    
+                    # If the line is (much) narrower than a spectral resolution element, need to increase the number of wavelength bins
+                    if self.full_convolution:
+                        n_res_mult[li] = l.wl / R_min / min_line_params["sigma_l_convolved"]
+                    else:
+                        fit_select += (wl_emit >= min_line_params["wl0"] - 7.0 * max_line_params["sigma_l_convolved"]) * \
+                                        (wl_emit <= max_line_params["wl0"] + 7.0 * max_line_params["sigma_l_convolved"])
+                
+                self.fit_select_list.append(fit_select)
+                
+                n_res = self.def_n_res * np.max(n_res_mult)
+                self.n_res_list.append(n_res)
+
+                wl_emit_model = self.get_highres_wl_array([wl_emit], [max_spectral_resolution], n_res=n_res)[1]
+                self.wl_emit_model_list.append(wl_emit_model)
+
+                if self.no_cont_flux:
+                    self.model_profile_list.append(np.zeros_like(wl_emit_model))
+                else:
+                    # Add underlying continuum
+                    self.model_profile_list.append(self.get_cont_flux(wl_emit=wl_emit_model))
+
+    def get_highres_wl_array(self, wl_emit_list, spectral_resolution_list, specific_lines=[], n_res=None):
+        n_R = len(wl_emit_list)
+        assert n_R == len(spectral_resolution_list)
+        for wl_emit in wl_emit_list:
+            # Check that wavelength array is ascending
+            assert wl_emit.size > 1
+            assert np.all(np.diff(wl_emit) > 0)
+        
+        if n_res is None:
+            n_res = self.def_n_res
+        
+        min_resolution = np.min(spectral_resolution_list)
+
+        if specific_lines:
+            wl = np.min([l.wl for l in specific_lines])
+            wl = wl - 3 * n_res * wl / min_resolution
+            wl_max = np.max([l.wl for l in specific_lines])
+            wl_max = wl_max + 3 * n_res * wl_max / min_resolution
+        else:
+            wl = np.min(wl_emit_list) * (1 - 3 * n_res / min_resolution)
+            wl_max = np.max(wl_emit_list) * (1 + 3 * n_res / min_resolution)
+        
+        def get_wl_incr(wl):
+            resolutions = [np.interp(wl, wl_R, R, left=np.nan, right=np.nan) for wl_R, R in zip(wl_emit_list, spectral_resolution_list)]
+            if np.all(np.isnan(resolutions)):
+                resolutions = []
+                for li in range(n_R):
+                    if wl > wl_emit_list[li][0] * (1 - 3 * n_res / spectral_resolution_list[li][0]):
+                        resolutions.append(spectral_resolution_list[li][0])
+                    elif wl < wl_emit_list[li][-1] * (1 + 3 * n_res / spectral_resolution_list[li][-1]):
+                        resolutions.append(spectral_resolution_list[li][-1])
+            
+            resolution = np.nanmax(resolutions) if resolutions else min_resolution
+            return wl / (n_res * resolution)
+
+        wl_emit_bin_edges = []
+        wl_incr = 0
+        while wl < wl_max:
+            wl_emit_bin_edges.append(wl)
+            wl_incr = get_wl_incr(wl + 0.5*wl_incr)
+            wl += wl_incr
+        
+        wl_emit_bin_edges = np.array(wl_emit_bin_edges)
+        assert wl_emit_bin_edges.size > 1
+        
+        wl_emit_model = 0.5 * (wl_emit_bin_edges[:-1] + wl_emit_bin_edges[1:])
+        
+        return (wl_emit_bin_edges, wl_emit_model)
+
+    def set_cont_flux(self, cont_flux):
+        self.cont_flux = cont_flux
+        self.no_cont_flux = self.cont_flux is None
+
+    def get_cont_flux(self, wl_emit):
+        if self.no_cont_flux:
             cont_flux = np.tile(np.nan, wl_emit.size)
         elif isinstance(self.cont_flux, dict):
             if self.cont_flux["type"] == "power-law":
                 # Model continuum as a power-law slope (in the rest frame)
                 cont_flux = np.where(wl_emit < 1215.6701, 0.0, self.cont_flux['C'] * (wl_emit/self.cont_flux["wl0"])**self.cont_flux["beta"])
             elif self.cont_flux["type"] == "SED_model":
-                # Interpolate intrinsic spectrum from a given SED model
-                cont_flux = spectres(wl_emit, self.cont_flux["wl_emit_intrinsic"], self.cont_flux["spectrum_intrinsic"])
+                # Use intrinsic spectrum from a given SED model
+                cont_flux = spectres(wl_emit, self.cont_flux["wl_emit_intrinsic"], self.cont_flux["spectrum_intrinsic"], fill=0.0, verbose=False)
             elif self.cont_flux["type"] == "function":
-                # Interpolate intrinsic spectrum from a given SED model
+                # Use given function
                 cont_flux = self.cont_flux["function"](wl_emit)
         else:
-            # Calculate observed continuum at given rest-frame wavelengths, then shift flux density into rest frame
-            assert z is not None
-            cont_flux = self.cont_flux(wl_emit * (1.0 + z)) * (1.0 + z)
+            raise ValueError("continuum type not recognised")
         
         return cont_flux
     
@@ -309,22 +422,30 @@ class MN_emission_line_solver(Solver):
         
         return (minimum, maximum)
     
-    def get_spectral_resolution(self, theta, oi):
+    def get_spectral_resolution(self, theta, oi, resolution_extreme=''):
         if self.res_scale_function is None:
             if len(self.res_scale_priors) == self.n_obs:
                 if self.res_scale_priors[oi]["type"].lower() == "fixed":
                     res_scale = self.res_scale_priors[oi]["params"][0]
                 else:
-                    res_scale = theta[self.params.index("res_scale_{:d}".format(oi))]
+                    if not resolution_extreme:
+                        res_scale = theta[self.params.index("res_scale_{:d}".format(oi))]
+                    elif resolution_extreme == "min":
+                        res_scale = self.get_prior_extrema(self.priors[self.params.index("res_scale_{:d}".format(oi))])[0]
+                    elif resolution_extreme == "max":
+                        res_scale = self.get_prior_extrema(self.priors[self.params.index("res_scale_{:d}".format(oi))])[1]
             else:
                 assert not self.res_scale_priors
                 res_scale = 1.0
         else:
-            res_scale = self.res_scale_function(oi, self.wl_obs_list[oi], **{param: theta[pi] for pi, param in enumerate(self.params) if "res_scale" in param})
+            if resolution_extreme:
+                res_scale = self.res_scale_function(oi, self.wl_obs_list[oi], resolution_extreme=resolution_extreme)
+            else:
+                res_scale = self.res_scale_function(oi, self.wl_obs_list[oi], **{param: theta[pi] for pi, param in enumerate(self.params) if "res_scale" in param})
         
         return (self.wl_obs_list[oi], res_scale * self.spectral_resolution_list[oi])
     
-    def get_line_params(self, theta, l, R=None):
+    def get_line_params(self, theta, l, R=None, R_idx=None, get_convolved=True):
         line_params = {}
         
         if hasattr(l, "asymmetric_Gaussian"):
@@ -350,7 +471,7 @@ class MN_emission_line_solver(Solver):
             line_params["dv"] = 0
         
         # Convert velocity offset in km/s to rest-frame wavelength
-        line_params["x0"] = l.wl / (1.0 - line_params["dv"]/299792.458)
+        line_params["wl0"] = l.wl / (1.0 - line_params["dv"]/299792.458)
         
         # Intrinsic line width (in km/s)
         if "sigma_v_{}".format(l.name) in self.params:
@@ -370,25 +491,31 @@ class MN_emission_line_solver(Solver):
         else:
             line_params["sigma_l_deconvolved"] = np.nan
         
-        # Add instrumental dispersion (if not specified, will take the maximum resolution)
-        if R is None:
-            z = np.nanmedian(self.samples[:, self.params.index("redshift")]) if "redshift" in self.params else self.redshift_prior["params"][0]
-            for oi in range(self.n_obs):
-                sigma_instrument = line_params["x0"] / np.interp(line_params["x0"]*(1.0+z), *self.get_spectral_resolution(theta, oi), left=np.nan, right=np.nan) / (2.0 * np.sqrt(2.0 * np.log(2)))
-                line_params["sigma_l_convolved_res{:d}".format(oi)] = np.sqrt(line_params["sigma_l_deconvolved"]**2 + sigma_instrument**2)
-            line_params["sigma_l_convolved"] = np.nanmin([line_params["sigma_l_convolved_res{:d}".format(oi)] for oi in range(self.n_obs)])
+        if get_convolved:
+            # Add instrumental dispersion (if not specified, will take the maximum resolution)
+            if R is None:
+                z = self.fixed_redshift if self.fixed_redshift else theta[self.params.index("redshift")]
+                obs_indices = range(self.n_obs) if R_idx is None else [R_idx]
+                for oi in obs_indices:
+                    FWHM_instrument = line_params["wl0"] / np.interp(line_params["wl0"]*(1.0+z), *self.get_spectral_resolution(theta, oi), left=np.nan, right=np.nan)
+                    line_params["sigma_l_convolved_res{:d}".format(oi)] = np.sqrt(line_params["sigma_l_deconvolved"]**2 + (FWHM_instrument/sigma2fwhm)**2)
+                line_params["sigma_l_convolved"] = np.nanmin([line_params["sigma_l_convolved_res{:d}".format(oi)] for oi in obs_indices])
+            else:
+                sigma_instrument = line_params["wl0"] / R / sigma2fwhm
+                line_params["sigma_l_convolved"] = np.sqrt(line_params["sigma_l_deconvolved"]**2 + sigma_instrument**2)
+            line_params["sigma_l"] = line_params["sigma_l_convolved" + ('' if R_idx is None else "_res{:d}".format(R_idx))]
         else:
-            sigma_instrument = line_params["x0"] / R / (2.0 * np.sqrt(2.0 * np.log(2)))
-            line_params["sigma_l_convolved"] = np.sqrt(line_params["sigma_l_deconvolved"]**2 + sigma_instrument**2)
-        
-        line_params["physical"] = np.isfinite(line_params["amplitude"]) and np.isfinite(line_params["x0"]) and line_params["sigma_l_convolved"] > 0
+            assert self.full_convolution
+            line_params["sigma_l"] = line_params["sigma_l_deconvolved"]
+
+        line_params["physical"] = np.isfinite(line_params["amplitude"]) and np.isfinite(line_params["wl0"]) and line_params["sigma_l"] > 0
 
         return line_params
 
     def get_line_overview(self, specific_lines=[], R=None):
         assert self.fitting_complete and hasattr(self, "samples")
         n_samples = self.samples.shape[0]
-        z = np.nanmedian(self.samples[:, self.params.index("redshift")]) if "redshift" in self.params else self.redshift_prior["params"][0]
+        z = self.fixed_redshift if self.fixed_redshift else np.nanmedian(self.samples[:, self.params.index("redshift")])
 
         specific_lines = specific_lines if specific_lines else self.line_list
         line_overview = {"line_names": [l.name for l in specific_lines], "line_uplims": [l.upper_limit for l in specific_lines],
@@ -416,15 +543,16 @@ class MN_emission_line_solver(Solver):
                 line_overview["sigma_v_prior_{}_cline".format(l.name)] = l.coupled_sigma_v_line.name
             
             # Obtain parameters for each line
-            l.parameters = list(self.get_line_params(self.samples[0], l, R=R).keys())
+            l.parameters = list(key for key in self.get_line_params(self.samples[0], l=l, R=R).keys() if key != "physical")
             
             sample_indices_rank = [np.arange(corei, n_samples, self.mpi_ncores) for corei in range(self.mpi_ncores)]
             line_samples = np.tile(np.nan, (n_samples, len(l.parameters)))
 
             self.mpi_synchronise(self.mpi_comm)
             for si in sample_indices_rank[self.mpi_rank]:
-                line_params = self.get_line_params(self.samples[si], l, R=R)
-                line_samples[si] = [line_params[param] for param in l.parameters]
+                line_params = self.get_line_params(self.samples[si], l=l, R=R)
+                if line_params["physical"] or l.upper_limit:
+                    line_samples[si] = [line_params[param] for param in l.parameters]
             
             self.mpi_synchronise(self.mpi_comm)
             if self.mpi_run:
@@ -445,28 +573,43 @@ class MN_emission_line_solver(Solver):
                 if l.upper_limit:
                     assert np.all(np.isnan(line_overview[l.name + "_amplitude_perc"]))
                     flux_uplims = np.tile(np.nan, self.n_obs)
-                    dv_med = np.nanmedian(l.line_samples[:, l.parameters.index("dv")])
-                    x0_med = l.wl / (1.0 - dv_med/299792.458)
+                    wl0_med = line_overview[l.name + "_wl0_perc"][1]
                     
-                    for oi, wl_obs, flux, flux_err in zip(range(self.n_obs), self.wl_obs_list, self.flux_list, self.flux_err_list):
+                    for oi in range(self.n_obs):
+                        wl_obs = self.wl_obs_list[oi]
+                        flux = self.flux_list[oi]
+                        flux_err = self.flux_err_list[oi]
+
                         wl_emit = wl_obs / (1.0 + z)
                         if l.wl > np.max(wl_emit) or l.wl < np.min(wl_emit):
                             continue
                         
-                        sig_med = np.nanmedian(l.line_samples[:, l.parameters.index("sigma_l_convolved_res{:d}".format(oi) if R is None else "sigma_l_convolved")])
-                        FWHM_select = (wl_emit >= x0_med - 1.5*sig_med) * (wl_emit <= x0_med + 1.5*sig_med)
+                        sig_med = line_overview[l.name + ("_sigma_l_convolved_res{:d}_perc".format(oi) if R is None else "sigma_l_convolved")][1]
+                        line_overview[l.name + "_sigma_l_convolved_perc"] = [np.nan, sig_med, np.nan]
+                        FWHM_select = (wl_emit >= wl0_med - 1.5*sig_med) * (wl_emit <= wl0_med + 1.5*sig_med)
                         
                         if np.sum(FWHM_select) > 2:
+                            if self.no_cont_flux:
+                                flux_contsub = flux[FWHM_select] * (1.0 + z)
+                            else:
+                                flux_contsub = flux[FWHM_select] * (1.0 + z) - self.get_cont_flux(wl_emit=wl_emit[FWHM_select])
+                            
                             # Only place upper limit if the line would be resolved
-                            dl_obs = np.interp(wl_obs[FWHM_select], 0.5*(wl_obs[FWHM_select][1:]+wl_obs[FWHM_select][:-1]), np.diff(wl_obs[FWHM_select]))
-                            flux_uplims[oi] = max(np.sum(flux[FWHM_select] * dl_obs), np.sqrt(np.sum((flux_err[FWHM_select] * dl_obs)**2)))
+                            dl_emit = np.interp(wl_emit[FWHM_select], 0.5*(wl_emit[FWHM_select][1:]+wl_emit[FWHM_select][:-1]), np.diff(wl_emit[FWHM_select]))
+                            flux_uplims[oi] = max(0, np.sum(flux_contsub * dl_emit)) + 3*np.sqrt(np.sum((flux_err[FWHM_select] * dl_emit)**2))
                     
                     line_overview[l.name + "_amplitude_perc"][1] = np.nanmin(flux_uplims)
         
         if self.mpi_rank == 0:
             for l in specific_lines:
-                # Calculate observed EW (in the rest frame)
-                line_overview[l.name + "_EW_perc"] = line_overview[l.name + "_amplitude_perc"] / self.get_cont_flux(wl_emit=l.wl, z=z)
+                # Calculate observed EW (in the rest frame); use median of underlying continuum
+                if l.name == "HI1216":
+                    l_min, l_max = 1216.5, 1225.0
+                else:
+                    l_min = line_overview[l.name + "_wl0_perc"][1] / (1.0 + 1.5*line_overview[l.name + "_sigma_l_convolved_perc"][1]/299792.458)
+                    l_max = line_overview[l.name + "_wl0_perc"][1] / (1.0 - 1.5*line_overview[l.name + "_sigma_l_convolved_perc"][1]/299792.458)
+                
+                line_overview[l.name + "_EW_perc"] = line_overview[l.name + "_amplitude_perc"] / np.median(self.get_cont_flux(wl_emit=np.linspace(l_min, l_max, 10)))
 
                 if hasattr(l, "report_ratios"):
                     num_lines = l.report_ratios.get("num_lines", [[l]] * len(l.report_ratios["den_lines"]))
@@ -525,10 +668,12 @@ class MN_emission_line_solver(Solver):
         if R_idx is not None:
             assert R is None
             assert isinstance(R_idx, int)
+        
+        new_line_overview = line_overview is None
 
         line_spectra = {}
         for l in self.line_list:
-            if line_overview is None:
+            if new_line_overview:
                 # Obtain full samples of the line parameters
                 line_overview = self.get_line_overview(specific_lines=[l], R=R)
             
@@ -542,15 +687,15 @@ class MN_emission_line_solver(Solver):
                 line_spectra[l.name + "_line_spec_uperr" + ('' if R_idx is None else "_res{:d}".format(R_idx))] = np.array([])
                 continue
             
-            wl_range_fit = np.arange(line_overview[l.name + "_x0_perc"][1] - 5*line_overview[sigma_l_conv_perc_key][1]*(2.0*np.sqrt(2.0*np.log(2))),
-                                        line_overview[l.name + "_x0_perc"][1] + 5*line_overview[sigma_l_conv_perc_key][1]*(2.0*np.sqrt(2.0*np.log(2))),
+            wl_range_fit = np.arange(line_overview[l.name + "_wl0_perc"][1] - 5*line_overview[sigma_l_conv_perc_key][1]*sigma2fwhm,
+                                        line_overview[l.name + "_wl0_perc"][1] + 5*line_overview[sigma_l_conv_perc_key][1]*sigma2fwhm,
                                         l.wl/10000.0)
             line_spectra[l.name + "_wl_range_fit" + ('' if R_idx is None else "_res{:d}".format(R_idx))] = wl_range_fit
             
             if l.upper_limit:
                 # Pass on the upper limit on the line to create the profile
-                l.line_params = {key: line_overview[l.name + "_{}_perc".format(key)][1] for key in ["amplitude", "x0", sigma_l_conv_key]}
-                l.line_params["physical"] = np.isfinite(l.line_params["amplitude"]) and np.isfinite(l.line_params["x0"]) and l.line_params[sigma_l_conv_key] > 0
+                l.line_params = {key: line_overview[l.name + "_{}_perc".format(key)][1] for key in ["amplitude", "wl0", sigma_l_conv_key]}
+                l.line_params["physical"] = np.isfinite(l.line_params["amplitude"]) and np.isfinite(l.line_params["wl0"]) and l.line_params[sigma_l_conv_key] > 0
             
             sample_indices_rank = [np.arange(corei, n_samples, self.mpi_ncores) for corei in range(self.mpi_ncores)]
             line_spec_samples = np.tile(np.nan, (n_samples, wl_range_fit.size))
@@ -584,105 +729,118 @@ class MN_emission_line_solver(Solver):
         return line_spectra
 
     def create_model(self, theta, z=None, specific_lines=[], wl_emit=None, R=None, R_idx=None):
-        if "redshift" in self.params:
-            z = theta[self.params.index("redshift")]
-        else:
-            assert self.redshift_prior["type"].lower() == "fixed"
-            z = self.redshift_prior["params"][0]
+        bespoke_z = z is not None
+        bespoke_wl = wl_emit is not None
+        bespoke_R = R is not None or R_idx is not None
+        predetermined_wl = not (specific_lines or bespoke_z or bespoke_wl or bespoke_R or not self.fixed_redshift)
+
+        if not bespoke_z:
+            if self.fixed_redshift:
+                z = self.fixed_redshift
+            else:
+                assert "redshift" in self.params
+                z = theta[self.params.index("redshift")]
         
         if specific_lines:
             line_list = specific_lines
         else:
             line_list = [l for l in self.line_list if not l.upper_limit]
         
-        bespoke_wl = wl_emit is not None
-        bespoke_R = R is not None
+        R_idx_key = '' if R_idx is None else "_res{:d}".format(R_idx)
         if bespoke_wl:
+            wl_emit_list = [wl_emit]
             if bespoke_R:
-                assert R_idx is None
-                wl_emit_list = [wl_emit]
-                spectral_resolution_list = [R if hasattr(R, "__len__") else np.tile(R, wl_emit.size)]
+                if R_idx is None:
+                    assert R is not None
+                    spectral_resolution_list = [R if hasattr(R, "__len__") else np.tile(R, wl_emit.size)]
+                else:
+                    assert R is None
+                    spectral_resolution_list = [np.interp(wl_emit * (1.0 + z), *self.get_spectral_resolution(theta, R_idx))]
             else:
-                wl_emit_list = []
-                spectral_resolution_list = []
-                for oi in range(self.n_obs):
-                    if (R_idx is None and oi != np.argmax(self.med_spectral_resolution_list)) or (R_idx is not None and oi != R_idx):
-                        # Only consider the specified resolution (highest as default) when specifying a wavelength array
-                        continue
-                    wl_emit_list.append(wl_emit)
-                    spectral_resolution_list.append(np.interp(wl_emit * (1.0 + z), *self.get_spectral_resolution(theta, oi)))
+                # Only consider the highest resolution as default when specifying a wavelength array
+                spectral_resolution_list = [np.interp(wl_emit * (1.0 + z), *self.get_spectral_resolution(theta, np.argmax(self.med_spectral_resolution_list)))]
         else:
             assert R is None and R_idx is None
-            wl_emit_list = [wl_obs / (1.0 + z) for wl_obs in self.wl_obs_list]
+            wl_emit_list = self.wl_emit_list.copy() if predetermined_wl else [wl_obs / (1.0 + z) for wl_obs in self.wl_obs_list]
             spectral_resolution_list = [self.get_spectral_resolution(theta, oi)[1] for oi in range(self.n_obs)]
+        n_models = len(wl_emit_list)
 
-        if self.full_convolution:
+        if predetermined_wl:
+            n_res_list = self.n_res_list
+            wl_emit_model_list = self.wl_emit_model_list
+            model_profile_list = [model_profile.copy() for model_profile in self.model_profile_list]
+        else:
             # Create a model wavelength grid covering a spectral resolution element with an adaptively chosen number of bins
             n_res_list = []
             wl_emit_model_list = []
 
-            for oi, wl_emit, spectral_resolution in zip(range(self.n_obs), wl_emit_list, spectral_resolution_list):
+            for oi in range(n_models):
+                wl_emit = wl_emit_list[oi]
+                spectral_resolution = spectral_resolution_list[oi]
+
                 # If the line is (much) narrower than a spectral resolution element, need to increase the number of wavelength bins
-                n_res = 3.0 * max(1.0, *[l.wl / np.interp(l.wl, wl_emit, spectral_resolution) / \
-                                            self.get_line_params(theta, l, R=np.inf)["sigma_l_deconvolved"] for l in line_list])
-
-                if wl_emit.size > 1:
-                    # Check that wavelength array is ascending
-                    assert np.all(np.diff(wl_emit) > 0)
-
-                wl_emit_bin_edges = []
-                wl = wl_emit[0] - 15 * wl_emit[0] / np.min(spectral_resolution)
-                
-                while wl < wl_emit[-1] + 15 * wl_emit[-1] / np.min(spectral_resolution):
-                    wl_emit_bin_edges.append(wl)
-                    wl += wl / (n_res * np.interp(wl, wl_emit, spectral_resolution))
-                
-                wl_emit_bin_edges = np.array(wl_emit_bin_edges)
-                assert wl_emit_bin_edges.size > 1
-                
+                if self.full_convolution:
+                    n_res = self.def_n_res * max(1.0, *[l.wl / np.interp(l.wl, wl_emit, spectral_resolution) / \
+                                        self.get_line_params(theta, l=l, R=np.interp(l.wl, wl_emit, spectral_resolution))["sigma_l_convolved"] for l in line_list])
+                else:
+                    n_res = self.def_n_res
                 n_res_list.append(n_res)
-                wl_emit_model_list.append(0.5 * (wl_emit_bin_edges[:-1] + wl_emit_bin_edges[1:]))
-        else:
-            n_res_list = len(wl_emit_list) * [np.nan]
-            wl_emit_model_list = wl_emit_list
+
+                wl_emit_model_list.append(self.get_highres_wl_array([wl_emit], [spectral_resolution], specific_lines=specific_lines, n_res=n_res)[1])
+
+            if specific_lines or self.no_cont_flux:
+                model_profile_list = [np.zeros_like(wl_emit_model) for wl_emit_model in wl_emit_model_list]
+            else:
+                # Add underlying continuum
+                model_profile_list = [self.get_cont_flux(wl_emit=wl_emit_model) for wl_emit_model in wl_emit_model_list]
         
-        model_profile_list = [np.zeros(wl_emit_model.size) for wl_emit_model in wl_emit_model_list]
         unphysical_model = False
         
-        if not specific_lines and isinstance(self.cont_flux, dict):
-            for oi, wl_emit_model in zip(range(len(wl_emit_list)), wl_emit_model_list):
-                # Add underlying continuum
-                model_profile_list[oi] = model_profile_list[oi] + self.get_cont_flux(wl_emit=wl_emit_model)
-        
-        # Add an (asymmetric) Gaussian component for each line
-        for l in line_list:
-            for oi, wl_emit, wl_emit_model, spectral_resolution in zip(range(len(wl_emit_list)), wl_emit_list, wl_emit_model_list, spectral_resolution_list):
-                R = np.interp(l.wl, wl_emit, spectral_resolution)
+        for oi in range(n_models):
+            wl_emit_model = wl_emit_model_list[oi]
+            model_profile = model_profile_list[oi]
+
+            # Add an (asymmetric) Gaussian component for each line
+            for l in line_list:
                 if l.upper_limit:
                     assert hasattr(l, "line_params")
-                    if R_idx is not None:
-                        l.line_params["sigma_l_convolved"] = l.line_params["sigma_l_convolved{}".format('' if R_idx is None else "_res{:d}".format(R_idx))]
+                    l.line_params["sigma_l"] = l.line_params["sigma_l_deconvolved" if self.full_convolution else "sigma_l_convolved{}".format(R_idx_key)]
                 else:
-                    l.line_params = self.get_line_params(theta, l, R)
+                    R = np.interp(l.wl, wl_emit_list[oi], spectral_resolution_list[oi])
+                    l.line_params = self.get_line_params(theta, l=l, R=R, get_convolved=not self.full_convolution)
                 
                 if l.line_params["physical"]:
                     # Create line profile in rest frame and add line model to the full model spectrum
-                    model_profile_list[oi] = model_profile_list[oi] + self.line_profile(x=wl_emit_model, l=l)
+                    if (wl_emit_model[-1] < l.line_params["wl0"] - 5.0 * l.line_params["sigma_l"]) or \
+                        (wl_emit_model[0] > l.line_params["wl0"] + 5.0 * l.line_params["sigma_l"]):
+                        continue
+                    
+                    idx0 = np.searchsorted(wl_emit_model, l.line_params["wl0"] - 5.0 * l.line_params["sigma_l"], side="left")
+                    idx1 = np.searchsorted(wl_emit_model, l.line_params["wl0"] + 5.0 * l.line_params["sigma_l"], side="right")
+                    if idx1 > idx0:
+                        model_profile[idx0:idx1] += self.line_profile(wl=wl_emit_model[idx0:idx1], l=l)
+                    else:
+                        assert idx0 == idx1
+                        dl_emit = np.interp(wl_emit_model[idx0], 0.5*(wl_emit_model[1:]+wl_emit_model[:-1]), np.diff(wl_emit_model))
+                        model_profile[idx0] += l.line_params["amplitude"] / dl_emit
                 else:
                     unphysical_model = True
+            
+            model_profile_list[oi] = model_profile
         
-        for oi, wl_emit, wl_emit_model, n_res in zip(range(len(wl_emit_list)), wl_emit_list, wl_emit_model_list, n_res_list):
+        for oi in range(n_models):
+            model_profile = model_profile_list[oi]
             if self.full_convolution:
                 # Fully convolve flux profile to simulate instrumental effect, with wavelength-dependent smoothing:
                 # standard devation derived from the number of bins covering a resolution element
-                model_profile_list[oi] = gaussian_filter1d(model_profile_list[oi], sigma=n_res/(2.0 * np.sqrt(2.0 * np.log(2))),
-                                                            mode="nearest", truncate=5.0)
-            
-            # Scale flux density by (1+z) to account for observed redshifting
-            model_profile_list[oi] = model_profile_list[oi] / (1.0 + z)
-            
-            # Rebin to observed wavelength array
-            model_profile_list[oi] = spectres(wl_emit, wl_emit_model, model_profile_list[oi])
+                model_profile = gaussian_filter1d(model_profile, sigma=n_res_list[oi]/sigma2fwhm, mode="nearest", truncate=4.0)
+
+            if bespoke_wl:
+                # Interpolate to specified wavelength array and scale flux density by (1+z) to account for observed redshifting
+                model_profile_list[oi] = np.interp(wl_emit_list[oi], wl_emit_model_list[oi], model_profile) / (1.0 + z)
+            else:
+                # Rebin to observed wavelength array and scale flux density by (1+z) to account for observed redshifting
+                model_profile_list[oi] = spectres(wl_emit_list[oi], wl_emit_model_list[oi], model_profile, fill=np.nan, verbose=False) / (1.0 + z)
         
         if bespoke_wl:
             assert len(model_profile_list) == 1
@@ -694,7 +852,7 @@ class MN_emission_line_solver(Solver):
         self.priors = []
         self.params = []
         
-        if not self.redshift_prior["type"].lower() == "fixed":
+        if not self.fixed_redshift:
             self.priors.append(self.redshift_prior)
             self.params.append("redshift")
         if not self.sigma_prior["type"].lower() == "fixed" and \
@@ -768,7 +926,11 @@ class MN_emission_line_solver(Solver):
         if unphysical_model:
             return -np.inf
         
-        for flux, model_profile, flux_err in zip(self.flux_list, model_profile_list, self.flux_err_list):
-            logL += -0.5 * np.nansum(((flux - model_profile) / flux_err)**2)
+        for oi in range(self.n_obs):
+            if self.fixed_redshift and not self.full_convolution:
+                fit_select = self.fit_select_list[oi]
+                logL += -0.5 * np.nansum(((self.flux_list[oi][fit_select] - model_profile_list[oi][fit_select]) / self.flux_err_list[oi][fit_select])**2)
+            else:
+                logL += -0.5 * np.nansum(((self.flux_list[oi] - model_profile_list[oi]) / self.flux_err_list[oi])**2)
         
         return logL
