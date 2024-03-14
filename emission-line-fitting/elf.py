@@ -55,7 +55,7 @@ class MN_emission_line_solver(Solver):
         for l in self.line_list:
             if not hasattr(l, "upper_limit"):
                 l.upper_limit = False
-            
+        
         for l in self.line_list:
             if hasattr(l, "fixed_line_ratio"):
                 assert not l.fixed_line_ratio["rline"].upper_limit
@@ -279,50 +279,63 @@ class MN_emission_line_solver(Solver):
         self.med_spectral_resolution_list = [np.median(spectral_resolution) for spectral_resolution in self.spectral_resolution_list]
 
         if self.fixed_redshift:
-            self.wl_emit_list = []
-            self.fit_select_list = []
-            self.n_res_list = []
-            self.wl_emit_model_list = []
-            self.model_profile_list = []
+            wl_emit_list = []
+            fit_select_list = []
+            n_res_list = []
+            wl_emit_model_list = []
+            model_profile_list = []
 
-            for oi in range(self.n_obs):
-                wl_emit = self.wl_obs_list[oi] / (1.0 + self.fixed_redshift)
-                self.wl_emit_list.append(wl_emit)
-                
-                n_res_mult = np.tile(1.0, len(self.line_list))
-                fit_select = np.tile(False, wl_emit.size)
-                
-                minmax_params = [self.get_prior_extrema(prior) for prior in self.priors]
-                min_spectral_resolution = self.get_spectral_resolution(theta=None, oi=oi, resolution_extreme="min")[1]
-                max_spectral_resolution = self.get_spectral_resolution(theta=None, oi=oi, resolution_extreme="max")[1]
-                
-                for li, l in enumerate(self.line_list):
-                    if l.upper_limit:
-                        continue
-                    R_min = np.interp(l.wl, wl_emit, min_spectral_resolution)
-                    min_line_params = self.get_line_params([minmax_param[0] for minmax_param in minmax_params], l=l, R=R_min)
-                    max_line_params = self.get_line_params([minmax_param[1] for minmax_param in minmax_params], l=l, R=R_min)
+            if self.mpi_rank == 0:
+                for oi in range(self.n_obs):
+                    wl_emit = self.wl_obs_list[oi] / (1.0 + self.fixed_redshift)
+                    wl_emit_list.append(wl_emit)
                     
-                    # If the line is (much) narrower than a spectral resolution element, need to increase the number of wavelength bins
-                    if self.full_convolution:
-                        n_res_mult[li] = l.wl / R_min / min_line_params["sigma_l_convolved"]
+                    n_res_mult = np.tile(1.0, len(self.line_list))
+                    fit_select = np.tile(False, wl_emit.size)
+                    
+                    minmax_params = [self.get_prior_extrema(prior) for prior in self.priors]
+                    min_spectral_resolution = self.get_spectral_resolution(theta=None, oi=oi, resolution_extreme="min")[1]
+                    max_spectral_resolution = self.get_spectral_resolution(theta=None, oi=oi, resolution_extreme="max")[1]
+                    
+                    for li, l in enumerate(self.line_list):
+                        if l.upper_limit:
+                            continue
+                        R_min = np.interp(l.wl, wl_emit, min_spectral_resolution)
+                        min_line_params = self.get_line_params([minmax_param[0] for minmax_param in minmax_params], l=l, R=R_min)
+                        max_line_params = self.get_line_params([minmax_param[1] for minmax_param in minmax_params], l=l, R=R_min)
+                        
+                        # If the line is (much) narrower than a spectral resolution element, need to increase the number of wavelength bins
+                        if self.full_convolution:
+                            n_res_mult[li] = l.wl / R_min / min_line_params["sigma_l_convolved"]
+                        else:
+                            fit_select += (wl_emit >= min_line_params["wl0"] - 7.0 * max_line_params["sigma_l_convolved"]) * \
+                                            (wl_emit <= max_line_params["wl0"] + 7.0 * max_line_params["sigma_l_convolved"])
+                    
+                    fit_select_list.append(fit_select)
+                    
+                    n_res = self.def_n_res * np.max(n_res_mult)
+                    n_res_list.append(n_res)
+
+                    if self.verbose:
+                        print("Creating high-resolution wavelength array for modelling observation {:d}...".format(oi+1))
+                    wl_emit_model = self.get_highres_wl_array([wl_emit], [max_spectral_resolution], n_res=n_res)[1]
+                    wl_emit_model_list.append(wl_emit_model)
+                    if self.verbose:
+                        print("Created array of size {:d} for modelling observation {:d}!".format(wl_emit_model.size, oi+1))
+
+                    if self.no_cont_flux:
+                        model_profile_list.append(np.zeros_like(wl_emit_model))
                     else:
-                        fit_select += (wl_emit >= min_line_params["wl0"] - 7.0 * max_line_params["sigma_l_convolved"]) * \
-                                        (wl_emit <= max_line_params["wl0"] + 7.0 * max_line_params["sigma_l_convolved"])
-                
-                self.fit_select_list.append(fit_select)
-                
-                n_res = self.def_n_res * np.max(n_res_mult)
-                self.n_res_list.append(n_res)
-
-                wl_emit_model = self.get_highres_wl_array([wl_emit], [max_spectral_resolution], n_res=n_res)[1]
-                self.wl_emit_model_list.append(wl_emit_model)
-
-                if self.no_cont_flux:
-                    self.model_profile_list.append(np.zeros_like(wl_emit_model))
-                else:
-                    # Add underlying continuum
-                    self.model_profile_list.append(self.get_cont_flux(wl_emit=wl_emit_model))
+                        # Add underlying continuum
+                        model_profile_list.append(self.get_cont_flux(wl_emit=wl_emit_model))
+            
+            self.mpi_synchronise(self.mpi_comm)
+            if self.mpi_run:
+                self.wl_emit_list = self.mpi_comm.bcast(wl_emit_list, root=0)
+                self.fit_select_list = self.mpi_comm.bcast(fit_select_list, root=0)
+                self.n_res_list = self.mpi_comm.bcast(n_res_list, root=0)
+                self.wl_emit_model_list = self.mpi_comm.bcast(wl_emit_model_list, root=0)
+                self.model_profile_list = self.mpi_comm.bcast(model_profile_list, root=0)
 
     def get_highres_wl_array(self, wl_emit_list, spectral_resolution_list, specific_lines=[], n_res=None):
         n_R = len(wl_emit_list)
@@ -339,13 +352,13 @@ class MN_emission_line_solver(Solver):
 
         if specific_lines:
             wl = np.min([l.wl for l in specific_lines])
-            wl = wl - 3 * n_res * wl / min_resolution
+            wl = max(0.1*wl, wl - 3 * n_res * wl / min_resolution)
             wl_max = np.max([l.wl for l in specific_lines])
             wl_max = wl_max + 3 * n_res * wl_max / min_resolution
         else:
-            wl = np.min(wl_emit_list) * (1 - 3 * n_res / min_resolution)
+            wl = max(0.1*np.min(wl_emit_list), np.min(wl_emit_list) * (1 - 3 * n_res / min_resolution))
             wl_max = np.max(wl_emit_list) * (1 + 3 * n_res / min_resolution)
-        
+
         def get_wl_incr(wl):
             resolutions = [np.interp(wl, wl_R, R, left=np.nan, right=np.nan) for wl_R, R in zip(wl_emit_list, spectral_resolution_list)]
             if np.all(np.isnan(resolutions)):
@@ -512,14 +525,31 @@ class MN_emission_line_solver(Solver):
 
         return line_params
 
-    def get_line_overview(self, specific_lines=[], R=None):
+    def get_line_overview(self, specific_lines=[], R=None, A_V=0.0, R_V=3.1, attenuation_curve=None):
         assert self.fitting_complete and hasattr(self, "samples")
         n_samples = self.samples.shape[0]
         z = self.fixed_redshift if self.fixed_redshift else np.nanmedian(self.samples[:, self.params.index("redshift")])
 
-        specific_lines = specific_lines if specific_lines else self.line_list
+        no_specific_lines = not specific_lines
+
+        specific_lines = self.line_list if no_specific_lines else specific_lines
         line_overview = {"line_names": [l.name for l in specific_lines], "line_uplims": [l.upper_limit for l in specific_lines],
                             "asymmetric_Gaussian_lines": [], "report_ratios": []}
+        
+        def dust_corr(wl):
+            if attenuation_curve is None:
+                return 1.0
+            else:
+                return 10**(A_V * attenuation_curve(wl, R_V=R_V) / 2.5)
+
+        if no_specific_lines:
+            if "redshift" in self.params:
+                line_overview["redshift_perc"] = np.nanpercentile(self.samples[:, self.params.index("redshift")], [0.5*(100-68.2689), 50, 0.5*(100+68.2689)], axis=0)
+            if "sigma_v" in self.params:
+                line_overview["sigma_v_perc"] = np.nanpercentile(self.samples[:, self.params.index("sigma_v")], [0.5*(100-68.2689), 50, 0.5*(100+68.2689)], axis=0)
+            for rsi, res_scale_prior in enumerate(self.res_scale_priors):
+                if not res_scale_prior["type"].lower() == "fixed":
+                    line_overview["res_scale_{:d}".format(rsi)] = np.nanpercentile(self.samples[:, self.params.index("res_scale_{:d}".format(rsi))], [0.5*(100-68.2689), 50, 0.5*(100+68.2689)], axis=0)
         
         for l in specific_lines:
             if hasattr(l, "asymmetric_Gaussian"):
@@ -628,9 +658,9 @@ class MN_emission_line_solver(Solver):
                                     ratio_kind = "undefined"
                                     numerator_samples = np.tile(np.nan, n_samples)
                                     continue
-                                numerator_samples += line_overview[li.name + "_amplitude_perc"][1]
+                                numerator_samples += line_overview[li.name + "_amplitude_perc"][1] * dust_corr(li.wl)
                             else:
-                                numerator_samples += li.line_samples[:, li.parameters.index("amplitude")]
+                                numerator_samples += li.line_samples[:, li.parameters.index("amplitude")] * dust_corr(li.wl)
                         
                         denominator_samples = np.zeros(n_samples)
                         for lj in dline_set:
@@ -640,9 +670,9 @@ class MN_emission_line_solver(Solver):
 
                             if lj.upper_limit:
                                 ratio_kind = "lower_limit"
-                                denominator_samples += line_overview[lj.name + "_amplitude_perc"][1]
+                                denominator_samples += line_overview[lj.name + "_amplitude_perc"][1] * dust_corr(lj.wl)
                             else:
-                                denominator_samples += lj.line_samples[:, lj.parameters.index("amplitude")]
+                                denominator_samples += lj.line_samples[:, lj.parameters.index("amplitude")] * dust_corr(lj.wl)
                         
                         ratio_samples = numerator_samples / denominator_samples
                         
@@ -661,19 +691,80 @@ class MN_emission_line_solver(Solver):
         self.mpi_synchronise(self.mpi_comm)
         
         return line_overview
+
+    def get_model_spectra(self, model_spectra={}, wl_emit_ranges=[]):
+        assert self.fitting_complete and hasattr(self, "samples")
+        n_samples = self.samples.shape[0]
+        
+        if self.fixed_redshift:
+            assert hasattr(self, "n_res_list") and hasattr(self, "wl_emit_model_list") and hasattr(self, "model_profile_list")
+            wl_emit_ranges = self.wl_emit_model_list
+            underlying_model = True
+        else:
+            assert wl_emit_ranges
+            if len(wl_emit_ranges) != self.n_obs:
+                assert len(wl_emit_ranges) == 1
+                wl_emit_ranges = self.n_obs * wl_emit_ranges
+            underlying_model = False
+        
+        if "gf_list" in model_spectra:
+            assert len(model_spectra["gf_list"]) == self.n_obs
+        else:
+            model_spectra["gf_list"] = ["res_{:d}".format(oi) for oi in range(self.n_obs)]
+
+        if self.verbose and self.mpi_rank == 0:
+            print("Constructing full model spectra with {:d} cores...".format(self.mpi_ncores), end=' ')
+        sample_indices_rank = [np.arange(corei, n_samples, self.mpi_ncores) for corei in range(self.mpi_ncores)]
+        line_spec_samples = {gf: np.tile(np.nan, (n_samples, wl_emit_ranges[gfi].size)) for gfi, gf in enumerate(model_spectra["gf_list"])}
+
+        self.mpi_synchronise(self.mpi_comm)
+        for samplei in sample_indices_rank[self.mpi_rank]:
+            if underlying_model:
+                model_profiles = self.create_model(self.samples[samplei], return_underlying_model=True)
+            else:
+                model_profiles = [self.create_model(self.samples[samplei], wl_emit=wl_emit_ranges[oi]) for oi in range(self.n_obs)]
+            
+            for gfi, gf in enumerate(model_spectra["gf_list"]):
+                line_spec_samples[gf][samplei] = model_profiles[gfi]
+        
+        self.mpi_synchronise(self.mpi_comm)
+        for gfi, gf in enumerate(model_spectra["gf_list"]):
+            if self.mpi_run:
+                # Use gather to concatenate arrays from all ranks on the master rank
+                line_spec_samples_full = np.zeros((self.mpi_ncores, n_samples, wl_emit_ranges[gfi].size)) if self.mpi_rank == 0 else None
+                self.mpi_comm.Gather(line_spec_samples[gf], line_spec_samples_full, root=0)
+                if self.mpi_rank == 0:
+                    for corei in range(1, self.mpi_ncores):
+                        line_spec_samples[gf][sample_indices_rank[corei]] = line_spec_samples_full[corei, sample_indices_rank[corei]]
+            
+            line_spec_median = np.median(line_spec_samples[gf], axis=0)
+            line_spec_lowerr = line_spec_median - np.percentile(line_spec_samples[gf], 0.5*(100-68.2689), axis=0)
+            line_spec_uperr = np.percentile(line_spec_samples[gf], 0.5*(100+68.2689), axis=0) - line_spec_median
+            
+            model_spectra["total_line_spectrum_{}".format(gf)] = [wl_emit_ranges[gfi], line_spec_median, line_spec_lowerr, line_spec_uperr]
+        
+        if self.verbose and self.mpi_rank == 0:
+            print("Done!")
+        
+        return model_spectra
     
-    def get_line_spectra(self, line_overview=None, R=None, R_idx=None):
+    def get_line_spectra(self, line_overview=None, R=None, R_idx=None, verbose=None):
         assert self.fitting_complete and hasattr(self, "samples")
         n_samples = self.samples.shape[0]
         if R_idx is not None:
             assert R is None
             assert isinstance(R_idx, int)
         
-        new_line_overview = line_overview is None
+        existing_line_overview = line_overview is not None
+
+        if verbose is None:
+            verbose = self.verbose
+        if verbose and self.mpi_rank == 0:
+            print("Constructing model line spectra with {:d} cores...".format(self.mpi_ncores), end=' ')
 
         line_spectra = {}
         for l in self.line_list:
-            if new_line_overview:
+            if not existing_line_overview:
                 # Obtain full samples of the line parameters
                 line_overview = self.get_line_overview(specific_lines=[l], R=R)
             
@@ -699,40 +790,60 @@ class MN_emission_line_solver(Solver):
             
             sample_indices_rank = [np.arange(corei, n_samples, self.mpi_ncores) for corei in range(self.mpi_ncores)]
             line_spec_samples = np.tile(np.nan, (n_samples, wl_range_fit.size))
+            if existing_line_overview and not l.name == "HI1216":
+                EW_samples = np.tile(np.nan, n_samples)
+                EW_window = (wl_range_fit > line_overview[l.name + "_wl0_perc"][1] - 2.5*line_overview[sigma_l_conv_perc_key][1]) * \
+                            (wl_range_fit < line_overview[l.name + "_wl0_perc"][1] + 2.5*line_overview[sigma_l_conv_perc_key][1])
 
             self.mpi_synchronise(self.mpi_comm)
             for si in sample_indices_rank[self.mpi_rank]:
                 line_spec_samples[si] = self.create_model(self.samples[si], specific_lines=[l], wl_emit=wl_range_fit, R=R, R_idx=R_idx)
+                if existing_line_overview and not l.name == "HI1216":
+                    # Calculated spectrum is in observed frame, shift back to rest frame for EW calculation
+                    z = self.fixed_redshift if self.fixed_redshift else self.samples[si, self.params.index("redshift")]
+                    EW_samples[si] = np.trapz((line_spec_samples[si][EW_window] * (1.0 + z))/self.get_cont_flux(wl_emit=wl_range_fit[EW_window]), x=wl_range_fit[EW_window])
             
             self.mpi_synchronise(self.mpi_comm)
             if self.mpi_run:
                 # Use gather to concatenate arrays from all ranks on the master rank
-                line_spec_samples_full = np.zeros((self.mpi_ncores, n_samples, wl_range_fit.size)) if self.mpi_rank == 0 else None
+                line_spec_samples_full = np.tile(np.nan, (self.mpi_ncores, n_samples, wl_range_fit.size)) if self.mpi_rank == 0 else None
+                if existing_line_overview and not l.name == "HI1216":
+                    EW_samples_full = np.tile(np.nan, (self.mpi_ncores, n_samples)) if self.mpi_rank == 0 else None
                 self.mpi_comm.Gather(line_spec_samples, line_spec_samples_full, root=0)
                 if self.mpi_rank == 0:
                     for corei in range(1, self.mpi_ncores):
                         line_spec_samples[sample_indices_rank[corei]] = line_spec_samples_full[corei, sample_indices_rank[corei]]
+                        if existing_line_overview and not l.name == "HI1216":
+                            EW_samples[sample_indices_rank[corei]] = EW_samples_full[corei, sample_indices_rank[corei]]
+            
+            if existing_line_overview and not l.name == "HI1216":
+                line_overview[l.name + "_EW_perc"] = np.nanpercentile(EW_samples, [0.5*(100-68.2689), 50, 0.5*(100+68.2689)], axis=0)
             
             if l.upper_limit:
                 del l.line_params
             
             if self.mpi_rank == 0:
-                line_spec_median = np.median(line_spec_samples, axis=0)
+                line_spec_median = np.nanmedian(line_spec_samples, axis=0)
                 line_spectra[l.name + "_line_spec_median" + ('' if R_idx is None else "_res{:d}".format(R_idx))] = line_spec_median
-                line_spectra[l.name + "_line_spec_lowerr" + ('' if R_idx is None else "_res{:d}".format(R_idx))] = line_spec_median - np.percentile(line_spec_samples, 0.5*(100-68.2689), axis=0)
-                line_spectra[l.name + "_line_spec_uperr" + ('' if R_idx is None else "_res{:d}".format(R_idx))] = np.percentile(line_spec_samples, 0.5*(100+68.2689), axis=0) - line_spec_median
+                line_spectra[l.name + "_line_spec_lowerr" + ('' if R_idx is None else "_res{:d}".format(R_idx))] = line_spec_median - np.nanpercentile(line_spec_samples, 0.5*(100-68.2689), axis=0)
+                line_spectra[l.name + "_line_spec_uperr" + ('' if R_idx is None else "_res{:d}".format(R_idx))] = np.nanpercentile(line_spec_samples, 0.5*(100+68.2689), axis=0) - line_spec_median
         
         if self.mpi_run:
             line_spectra = self.mpi_comm.bcast(line_spectra, root=0)
         self.mpi_synchronise(self.mpi_comm)
         
+        if verbose and self.mpi_rank == 0:
+            print("Done!")
+        
         return line_spectra
 
-    def create_model(self, theta, z=None, specific_lines=[], wl_emit=None, R=None, R_idx=None):
+    def create_model(self, theta, z=None, specific_lines=[], wl_emit=None, R=None, R_idx=None, return_underlying_model=False):
         bespoke_z = z is not None
         bespoke_wl = wl_emit is not None
         bespoke_R = R is not None or R_idx is not None
         predetermined_wl = not (specific_lines or bespoke_z or bespoke_wl or bespoke_R or not self.fixed_redshift)
+        if return_underlying_model:
+            assert predetermined_wl
 
         if not bespoke_z:
             if self.fixed_redshift:
@@ -826,21 +937,25 @@ class MN_emission_line_solver(Solver):
                 else:
                     unphysical_model = True
             
-            model_profile_list[oi] = model_profile
+            # Scale flux density by (1+z) to account for observed redshifting
+            model_profile_list[oi] = model_profile / (1.0 + z)
         
-        for oi in range(n_models):
-            model_profile = model_profile_list[oi]
-            if self.full_convolution:
+        if self.full_convolution:
+            for oi in range(n_models):
                 # Fully convolve flux profile to simulate instrumental effect, with wavelength-dependent smoothing:
                 # standard devation derived from the number of bins covering a resolution element
-                model_profile = gaussian_filter1d(model_profile, sigma=n_res_list[oi]/sigma2fwhm, mode="nearest", truncate=4.0)
+                model_profile_list[oi] = gaussian_filter1d(model_profile_list[oi], sigma=n_res_list[oi]/sigma2fwhm, mode="nearest", truncate=4.0)
+        
+        if return_underlying_model:
+            return model_profile_list
 
+        for oi in range(n_models):
             if bespoke_wl:
-                # Interpolate to specified wavelength array and scale flux density by (1+z) to account for observed redshifting
-                model_profile_list[oi] = np.interp(wl_emit_list[oi], wl_emit_model_list[oi], model_profile) / (1.0 + z)
+                # Interpolate to specified wavelength array
+                model_profile_list[oi] = np.interp(wl_emit_list[oi], wl_emit_model_list[oi], model_profile_list[oi])
             else:
-                # Rebin to observed wavelength array and scale flux density by (1+z) to account for observed redshifting
-                model_profile_list[oi] = spectres(wl_emit_list[oi], wl_emit_model_list[oi], model_profile, fill=np.nan, verbose=False) / (1.0 + z)
+                # Rebin to observed wavelength array
+                model_profile_list[oi] = spectres(wl_emit_list[oi], wl_emit_model_list[oi], model_profile_list[oi], fill=np.nan, verbose=False)
         
         if bespoke_wl:
             assert len(model_profile_list) == 1
