@@ -1,7 +1,4 @@
-# MERCURIUS
-<br>
-<img src="/aux/MERCURIUS.png" width="100%">
-<br>
+# Emission-line fitting
 
 ## Contents
 1. [Description](#Description)
@@ -18,43 +15,44 @@ This is an emission-line fitting code using the pymultinest package (Feroz et al
 
 ### <a name="Cloning"></a>Cloning
 
-First, obtain the latest version of the `mercurius` code. For example, you can clone the repository by navigating to your desired installation folder and using
+First, obtain the latest version of the code. For example, you can clone the repository by navigating to your desired installation folder and using
 
 ```
-git clone https://github.com/joriswitstok/mercurius.git
+git clone https://github.com/joriswitstok/emission-line-fitting.git
 ```
 
 ### <a name="Package_requirements"></a>Package requirements
 
-Running `mercurius` requires the following Python packages:
+Running the code requires the following Python packages:
 - `numpy`
 - `scipy`
 - `astropy`
 - `emcee`
 - `pymultinest`
+- `spectres`
 - `corner`
 - `matplotlib`
 - `seaborn`
 - `mock`
   
-One way to ensure all these modules are installed is via the file `mercurius3.yml` provided in the main folder, which can be used to create an `conda` environment in Python 3 (see the `conda` [documentation on environments](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) for more details) containing all the required packages.
+One way to ensure all these modules are installed is via the file `elf3.yml` provided in the main folder, which can be used to create an `conda` environment in Python 3 (see the `conda` [documentation on environments](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) for more details) containing all the required packages.
 
 If you have `conda` installed and set up as a `python` distribution, this can be achieved with:
 
 ```
-conda env create -f mercurius3.yml
+conda env create -f elf3.yml
 ```
 
 Before running the code, the environment needs to be activated using
 
 ```
-conda activate mercurius3
+conda activate elf3
 ```
 
 By default, the terminal will indicate the environment is active by showing a prompt similar to:
 
 ```
-(mercurius3) $ 
+(elf3) $ 
 ```
 
 ## <a name="Example_usage"></a>Example usage

@@ -33,6 +33,69 @@ class MN_emission_line_solver(Solver):
                     res_scale_function=None, res_scale_priors=None,
                     mpi_run=False, mpi_comm=None, mpi_rank=0, mpi_ncores=1, mpi_synchronise=None,
                     fit_name=None, print_setup=True, plot_setup=False, mpl_style=None, verbose=True, **solv_kwargs):
+        """Class `MN_emission_line_solver` for interacting with the fitting and plotting routines.
+
+        Parameters
+        ----------
+        line_list : list
+            A list of emission lines `line` objects to be fitted.
+        wl_obs_list : list
+            A list of wavelengths of the observations.
+        flux_list : list
+            A list of flux densities of the observations.
+        flux_err_list : list
+            A list of flux density uncertainties of the observations.
+        cont_flux : {function, dict}, optional
+            A function or dictionary describing the underlying continuum.
+        min_amplitude : {`None`, float}, optional
+            Minimum line amplitude, defaults to `1e-4`.
+        max_amplitude : {`None`, float}, optional
+            Maximum line amplitude, defaults to `1e4`.
+        sigma_default : {`None`, float}, optional
+            Value in km/s of the line velocity dispersion sigma_v used to calculate
+            upper limits, if not linked to other lines. Default is `None`, which
+            results in `100.0`.
+        spectral_resolution_list : list, optional
+            A list of spectral resolutions of the observations.
+        full_convolution : bool, optional
+            Controls whether fitting is performed with a full convolution of the model
+            spectra (including the underlying continuum).
+        redshift_prior : dict, optional
+            Controls the prior on the redshift, defaults to uniform between 0 < z < 20.
+        sigma_prior : dict, optional
+            Controls the prior on the velocity dispersion of all lines, defaults to
+            uniform between 0 km/s < sigma_v < 500 km/s.
+        res_scale_function : {`None`, function}, optional
+            Custom function defining the scaling of the spectral resolution (see
+            `MN_emission_line_solver.get_spectral_resolution()`).
+        res_scale_priors : {`None`, list}, optional
+            List of priors for scaling of the spectral resolution in each
+            individual observation.
+        mpi_run : bool, optional
+            Controls whether the code is run by multiple cores in parallel.
+        mpi_comm : {`None`, instance of `MPI.COMM_WORLD`}, optional
+            mpi4py object allowing MPI communication between cores.
+        mpi_rank : int, optional
+            Present MPI core rank. Defaults to 0.
+        mpi_ncores : int, optional
+            Total number of MPI cores. Defaults to 1.
+        mpi_synchronise : {`None`, function}
+            mpi4py function to synchronise different cores,
+            e.g. `lambda _: MPI.COMM_WORLD.Barrier()`.
+        fit_name : {`None`, str}, optional
+            Name of the fit being performed.
+        print_setup : bool, optional
+            Controls whether an overview is printed of all parameters being fitted.
+        plot_setup : bool, optional
+            Controls whether an overview is plotted of all observations being fitted.
+        mpl_style : {`None`, str}, optional
+            Path of file to be used for plotting (`plt.style.use(mpl_style)`).
+        verbose : bool, optional
+            Controls whether status of fitting and calculations are printed.
+        solv_kwargs : dict, optional
+            Optional keyword arguments passed to `pymultinest.solve.Solver`.
+
+        """
         self.mpi_run = mpi_run
         self.mpi_comm = mpi_comm
         self.mpi_rank = mpi_rank
@@ -106,6 +169,20 @@ class MN_emission_line_solver(Solver):
         self.fitting_complete = True
 
     def plot_models(self, params_list, labels_list, figname=None, showfig=False):
+        """Function to plot one or several models.
+
+        Parameters
+        ----------
+        params_list : list
+            A list in which each element is a set of model parameters to be plotted.
+        labels_list : list
+            A list of names for each set of model parameters.
+        figname : str, optional
+            Path of plot to be saved to.
+        showfig : bool, optional
+            Controls whether the figure is displayed.
+
+        """
         if self.mpi_rank == 0:
             plt, sns = import_matplotlib()
             if self.mpl_style:
@@ -182,6 +259,18 @@ class MN_emission_line_solver(Solver):
             plt.close(fig)
 
     def plot_corner(self, params=None, figname=None, showfig=False):
+        """Function to create corner plot with posterior distributions.
+
+        Parameters
+        ----------
+        params : list, optional
+            A list containing the names of the parameters to be plotted (defaults to all).
+        figname : str, optional
+            Path of plot to be saved to.
+        showfig : bool, optional
+            Controls whether the figure is displayed.
+
+        """
         if self.mpi_rank != 0:
             return None
         else:
@@ -233,15 +322,15 @@ class MN_emission_line_solver(Solver):
             plt.close(fig)
 
     def Gaussian(self, A, x0, y0, sigma, x):
+        """Function for Gaussian line profile. Intended for internal use.
+
+        """
         return A / (np.sqrt(2*np.pi)*sigma) * np.exp( -(x-x0)**2 / (2.0*sigma**2) ) + y0
 
     def asym_Gaussian(self, A, x0, y0, sigma, a_asym, x):
-        """
-
-        Skewed Gaussian profile
+        """Function for Skewed Gaussian profile. Intended for internal use.
 
         """
-        
         if a_asym == 0:
             return self.Gaussian(A, x0, y0, sigma, x)
         else:
@@ -254,6 +343,9 @@ class MN_emission_line_solver(Solver):
             return A * skewnorm.pdf(x, a=a_asym, loc=x0-m, scale=sigma_scaled) + y0
 
     def line_profile(self, wl, l):
+        """Function for creating a line profile. Intended for internal use.
+
+        """
         assert hasattr(l, "line_params")
         
         if hasattr(l, "asymmetric_Gaussian"):
@@ -265,6 +357,9 @@ class MN_emission_line_solver(Solver):
         return line_f_l_rest
 
     def set_observations(self, wl_obs_list, flux_list, flux_err_list, spectral_resolution_list):
+        """Function for setting observations and creating wavelength arrays. Intended for internal use.
+
+        """
         self.wl_obs_list = wl_obs_list
         self.flux_list = flux_list
         self.flux_err_list = flux_err_list
@@ -338,6 +433,9 @@ class MN_emission_line_solver(Solver):
                 self.model_profile_list = self.mpi_comm.bcast(model_profile_list, root=0)
 
     def get_highres_wl_array(self, wl_emit_list, spectral_resolution_list, specific_lines=[], n_res=None):
+        """Function for creating a high-resolution wavelength array. Intended for internal use.
+
+        """
         n_R = len(wl_emit_list)
         assert n_R == len(spectral_resolution_list)
         for wl_emit in wl_emit_list:
@@ -387,10 +485,16 @@ class MN_emission_line_solver(Solver):
         return (wl_emit_bin_edges, wl_emit_model)
 
     def set_cont_flux(self, cont_flux):
+        """Function for setting variables regarding continuum flux. Intended for internal use.
+
+        """
         self.cont_flux = cont_flux
         self.no_cont_flux = self.cont_flux is None
 
     def get_cont_flux(self, wl_emit):
+        """Function for obtaining the continuum flux. Intended for internal use.
+
+        """
         if self.no_cont_flux:
             cont_flux = np.tile(np.nan, wl_emit.size)
         elif isinstance(self.cont_flux, dict):
@@ -409,6 +513,9 @@ class MN_emission_line_solver(Solver):
         return cont_flux
     
     def get_prior_extrema(self, prior):
+        """Function for getting the minimum and maximum of a prior. Intended for internal use.
+
+        """
         if prior["type"].lower() == "uniform":
             minimum = prior["params"][0]
             maximum = prior["params"][1]
@@ -436,6 +543,9 @@ class MN_emission_line_solver(Solver):
         return (minimum, maximum)
     
     def get_spectral_resolution(self, theta, oi, resolution_extreme=''):
+        """Function for getting the spectral resolution. Intended for internal use.
+
+        """
         if self.res_scale_function is None:
             if len(self.res_scale_priors) == self.n_obs:
                 if self.res_scale_priors[oi]["type"].lower() == "fixed":
@@ -459,6 +569,9 @@ class MN_emission_line_solver(Solver):
         return (self.wl_obs_list[oi], res_scale * self.spectral_resolution_list[oi])
     
     def get_line_params(self, theta, l, R=None, R_idx=None, get_convolved=True):
+        """Function for getting the line parameters given a set of model parameters. Intended for internal use.
+
+        """
         line_params = {}
         
         if hasattr(l, "asymmetric_Gaussian"):
@@ -526,6 +639,23 @@ class MN_emission_line_solver(Solver):
         return line_params
 
     def get_line_overview(self, specific_lines=[], R=None, A_V=0.0, R_V=3.1, attenuation_curve=None):
+        """Function for getting an overview of fitting results.
+
+        Parameters
+        ----------
+        specific_lines : list, optional
+            A list of emission line `line` objects for which to collect results
+            (defaults to all used in fitting).
+        R : {None, float}, optional
+            Spectral resolution to be applied.
+        A_V : {None, float}, optional
+            Optional value of A_V to apply dust correction (defaults to `0.0`).
+        R_V : {None, float}, optional
+            Optional value of R_V to apply dust correction (defaults to `3.1`).
+        attenuation_curve : {`None`, function}, optional
+            Optional function to apply dust correction.
+
+        """
         assert self.fitting_complete and hasattr(self, "samples")
         n_samples = self.samples.shape[0]
         z = self.fixed_redshift if self.fixed_redshift else np.nanmedian(self.samples[:, self.params.index("redshift")])
@@ -693,6 +823,18 @@ class MN_emission_line_solver(Solver):
         return line_overview
 
     def get_model_spectra(self, model_spectra={}, wl_emit_ranges=[]):
+        """Function for calculating model spectra based on fitting results.
+
+        Parameters
+        ----------
+        model_spectra : list, optional
+            A list containing strings specifying the names of the spectral modes
+            (defaults to all used in fitting).
+        wl_emit_ranges : list, optional
+            A list containing rest-frame wavelength arrays for each spectral mode
+            (defaults to those used in fitting models).
+
+        """
         assert self.fitting_complete and hasattr(self, "samples")
         n_samples = self.samples.shape[0]
         
@@ -749,6 +891,21 @@ class MN_emission_line_solver(Solver):
         return model_spectra
     
     def get_line_spectra(self, line_overview=None, R=None, R_idx=None, verbose=None):
+        """Function for calculating model spectra around specific lines.
+
+        Parameters
+        ----------
+        line_overview : {`None`, dict}, optional
+            A dictionary containing pre-computed line parameters (as obtained with the
+            `get_line_overview` function).
+        R : {None, float}, optional
+            Spectral resolution to be applied.
+        R_idx : {None, int}, optional
+            Index of observation whose spectral resolution should be applied.
+        verbose : bool, optional
+            Controls whether status of calculations are printed.
+
+        """
         assert self.fitting_complete and hasattr(self, "samples")
         n_samples = self.samples.shape[0]
         if R_idx is not None:
@@ -838,6 +995,27 @@ class MN_emission_line_solver(Solver):
         return line_spectra
 
     def create_model(self, theta, z=None, specific_lines=[], wl_emit=None, R=None, R_idx=None, return_underlying_model=False):
+        """Function for calculating model spectra. Mainly intended for internal use.
+
+        Parameters
+        ----------
+        theta : list
+            A list of model parameters.
+        z : {`None`, float}, optional
+            Value of the redshift.
+        specific_lines : list, optional
+            A list of emission line `line` objects for which to collect results
+            (defaults to all used in fitting).
+        wl_emit : {`None`, array}, optional
+            Array of rest-frame wavelength values for which to compute a model.
+        R : {None, float}, optional
+            Spectral resolution to be applied.
+        R_idx : {None, int}, optional
+            Index of observation whose spectral resolution should be applied.
+        return_underlying_model : bool, optional
+            Controls whether the underlying model is returned before rebinning.
+
+        """
         bespoke_z = z is not None
         bespoke_wl = wl_emit is not None
         bespoke_R = R is not None or R_idx is not None
@@ -964,6 +1142,9 @@ class MN_emission_line_solver(Solver):
             return (model_profile_list, unphysical_model)
     
     def set_prior(self):
+        """Function for specifying priors and model parameters. Intended for internal use.
+
+        """
         self.priors = []
         self.params = []
         
@@ -1009,6 +1190,9 @@ class MN_emission_line_solver(Solver):
         assert self.n_dims == len(self.priors)
 
     def Prior(self, cube):
+        """Function for calculating a prior. Intended for internal use.
+
+        """
         assert hasattr(self, "priors")
         assert hasattr(self, "params")
 
@@ -1035,6 +1219,9 @@ class MN_emission_line_solver(Solver):
         return cube
 
     def LogLikelihood(self, theta):
+        """Function for calculating log likelihood. Intended for internal use.
+
+        """
         logL = 0.0
         
         model_profile_list, unphysical_model = self.create_model(theta)

@@ -5,3 +5,4 @@ __pycache__/*
 build/
 emission-line-fitting.egg-info/
 emission-line-fitting/aux/__pycache__/
+.DS_Store
