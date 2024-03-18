@@ -6,9 +6,9 @@ def readme():
     with open('README.md') as file:
         return(file.read())
 
-setup(name='emission_line_fitting',
+setup(name='lymana_absorption',
       version='0.0',
-      description='Spectral fitting of emission lines',
+      description='Spectral fitting of Lyman alpha absorption',
       long_description=readme(),
       classifiers=[
         'Development Status :: 0 - Production/Stable',
@@ -17,20 +17,21 @@ setup(name='emission_line_fitting',
         'Programming Language :: Python :: 3',
         'Topic :: Scientific/Engineering :: Astronomy',
       ],
-      url='https://github.com/joriswitstok/emission-line-fitting',
+      url='https://github.com/fdeugenio/nirspecxf',
       author='Joris Witstok',
       author_email='jnw30@cam.ac.uk',
       license='MIT',
       packages=find_packages(),
       install_requires=[
-        'matplotlib==3.5.3',
-        'numpy>=1.23.2',
-        'scipy>=1.9.0',
-        'astropy>=5.1',
+        'matplotlib>=3.5.3',
+        'numpy>=1.21.6',
+        'scipy>=1.10.1',
+        'astropy>=5.2',
         'spectres>=2.2.0',
         'corner',
         'seaborn',
         'pymultinest',
+        'mpi4py',
       ],
       python_requires='>=3.8',
       #entry_points={
