@@ -15,7 +15,7 @@ This is an emission-line fitting code using the pymultinest package (Feroz et al
 
 ### <a name="Cloning"></a>Cloning
 
-First, obtain and install the latest version of the code, which can be done via `pip`. Alternatively, you can clone the repository by navigating to your desired installation folder and using
+First, obtain and install the latest version of the code, which can be done via `pip`. You can clone the repository by navigating to your desired installation folder and using
 
 ```
 git clone https://github.com/joriswitstok/emission_line_fitting.git
