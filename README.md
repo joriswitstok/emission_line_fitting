@@ -70,4 +70,4 @@ build				emission_line_fitting.egg-info
 
 ## <a name="Example_usage"></a>Example usage
 
-A more advanced example usage case is illustrated by running the file `example_fit.py` (again located in the `examples` folder). This script performs a fitting routine to the observed spectrum of GS-z13 (as in [Hainline et al. 2024]()), given a resolution curve and an intrinsic model spectrum.
+To follow...
