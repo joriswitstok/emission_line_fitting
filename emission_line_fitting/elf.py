@@ -243,7 +243,7 @@ class MN_emission_line_solver(Solver):
                     
                     dl_obs = np.interp(wl_obs, 0.5*(wl_obs[1:]+wl_obs[:-1]), np.diff(wl_obs))
                     ax.fill_between(np.vstack((wl_obs-0.5*dl_obs, wl_obs+0.5*dl_obs)).reshape((-1,), order='F'), y1=0, y2=1,
-                                    where=np.vstack((self.fit_select_list[oi], self.fit_select_list[oi])).reshape((-1,), order='F'),
+                                    where=np.vstack((self.fit_select_list[oi], self.fit_select_list[oi])).reshape((-1,), order='F') if self.fixed_redshift else None,
                                     transform=ax.get_xaxis_transform(), edgecolor="None", facecolor="grey", alpha=0.4)
                     
                     if coli == 1:
@@ -840,7 +840,7 @@ class MN_emission_line_solver(Solver):
         
         if self.fixed_redshift:
             assert hasattr(self, "n_res_list") and hasattr(self, "wl_emit_model_list") and hasattr(self, "model_profile_list")
-            wl_emit_ranges = self.wl_emit_model_list
+            wl_emit_ranges = self.wl_emit_model_list.copy()
             underlying_model = True
         else:
             assert wl_emit_ranges
@@ -858,6 +858,11 @@ class MN_emission_line_solver(Solver):
             print("Constructing full model spectra with {:d} cores...".format(self.mpi_ncores), end=' ')
         sample_indices_rank = [np.arange(corei, n_samples, self.mpi_ncores) for corei in range(self.mpi_ncores)]
         line_spec_samples = {gf: np.tile(np.nan, (n_samples, wl_emit_ranges[gfi].size)) for gfi, gf in enumerate(model_spectra["gf_list"])}
+        
+        # Add an extra set of arrays for the intrinsic, high-resolution model
+        wl_emit_maxR = wl_emit_ranges[np.argmax(self.med_spectral_resolution_list)]
+        wl_emit_ranges.append(wl_emit_maxR)
+        line_spec_samples["res_max"] = np.tile(np.nan, (n_samples, wl_emit_maxR.size))
 
         self.mpi_synchronise(self.mpi_comm)
         for samplei in sample_indices_rank[self.mpi_rank]:
@@ -868,9 +873,10 @@ class MN_emission_line_solver(Solver):
             
             for gfi, gf in enumerate(model_spectra["gf_list"]):
                 line_spec_samples[gf][samplei] = model_profiles[gfi]
+            line_spec_samples["res_max"][samplei] = self.create_model(self.samples[samplei], wl_emit=wl_emit_maxR, R=1e5)
         
         self.mpi_synchronise(self.mpi_comm)
-        for gfi, gf in enumerate(model_spectra["gf_list"]):
+        for gfi, gf in enumerate(line_spec_samples.keys()):
             if self.mpi_run:
                 # Use gather to concatenate arrays from all ranks on the master rank
                 line_spec_samples_full = np.zeros((self.mpi_ncores, n_samples, wl_emit_ranges[gfi].size)) if self.mpi_rank == 0 else None

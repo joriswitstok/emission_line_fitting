@@ -391,12 +391,12 @@ class line:
         if np.all(self.forb_line == 'Y'):
             self.lpar = '['
             self.rpar = ']'
-        elif np.all(self.forb_line == 'S'):
-            self.lpar = ''
-            self.rpar = ']'
-        else:
+        elif np.all(self.forb_line == 'N'):
             self.lpar = ''
             self.rpar = ''
+        else:
+            self.lpar = ''
+            self.rpar = ']'
 
     def __repr__(self):
         if self.atomic:
