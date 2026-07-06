@@ -374,16 +374,16 @@ class MN_emission_line_solver(Solver):
         self.med_spectral_resolution_list = [np.median(spectral_resolution) for spectral_resolution in self.spectral_resolution_list]
 
         if self.fixed_redshift:
-            wl_emit_list = []
-            fit_select_list = []
-            n_res_list = []
-            wl_emit_model_list = []
-            model_profile_list = []
+            self.wl_emit_list = []
+            self.fit_select_list = []
+            self.n_res_list = []
+            self.wl_emit_model_list = []
+            self.model_profile_list = []
 
             if self.mpi_rank == 0:
                 for oi in range(self.n_obs):
                     wl_emit = self.wl_obs_list[oi] / (1.0 + self.fixed_redshift)
-                    wl_emit_list.append(wl_emit)
+                    self.wl_emit_list.append(wl_emit)
                     
                     n_res_mult = np.tile(1.0, len(self.line_list))
                     fit_select = np.tile(False, wl_emit.size)
@@ -406,31 +406,31 @@ class MN_emission_line_solver(Solver):
                             fit_select += (wl_emit >= min_line_params["wl0"] - 7.0 * max_line_params["sigma_l_convolved"]) * \
                                             (wl_emit <= max_line_params["wl0"] + 7.0 * max_line_params["sigma_l_convolved"])
                     
-                    fit_select_list.append(fit_select)
+                    self.fit_select_list.append(fit_select)
                     
                     n_res = self.def_n_res * np.max(n_res_mult)
-                    n_res_list.append(n_res)
+                    self.n_res_list.append(n_res)
 
                     if self.verbose:
                         print("Creating high-resolution wavelength array for modelling observation {:d}...".format(oi+1))
                     wl_emit_model = self.get_highres_wl_array([wl_emit], [max_spectral_resolution], n_res=n_res)[1]
-                    wl_emit_model_list.append(wl_emit_model)
+                    self.wl_emit_model_list.append(wl_emit_model)
                     if self.verbose:
                         print("Created array of size {:d} for modelling observation {:d}!".format(wl_emit_model.size, oi+1))
 
                     if self.no_cont_flux:
-                        model_profile_list.append(np.zeros_like(wl_emit_model))
+                        self.model_profile_list.append(np.zeros_like(wl_emit_model))
                     else:
                         # Add underlying continuum
-                        model_profile_list.append(self.get_cont_flux(wl_emit=wl_emit_model))
+                        self.model_profile_list.append(self.get_cont_flux(wl_emit=wl_emit_model))
             
             self.mpi_synchronise(self.mpi_comm)
             if self.mpi_run:
-                self.wl_emit_list = self.mpi_comm.bcast(wl_emit_list, root=0)
-                self.fit_select_list = self.mpi_comm.bcast(fit_select_list, root=0)
-                self.n_res_list = self.mpi_comm.bcast(n_res_list, root=0)
-                self.wl_emit_model_list = self.mpi_comm.bcast(wl_emit_model_list, root=0)
-                self.model_profile_list = self.mpi_comm.bcast(model_profile_list, root=0)
+                self.wl_emit_list = self.mpi_comm.bcast(self.wl_emit_list, root=0)
+                self.fit_select_list = self.mpi_comm.bcast(self.fit_select_list, root=0)
+                self.n_res_list = self.mpi_comm.bcast(self.n_res_list, root=0)
+                self.wl_emit_model_list = self.mpi_comm.bcast(self.wl_emit_model_list, root=0)
+                self.model_profile_list = self.mpi_comm.bcast(self.model_profile_list, root=0)
 
     def get_highres_wl_array(self, wl_emit_list, spectral_resolution_list, specific_lines=[], n_res=None):
         """Function for creating a high-resolution wavelength array. Intended for internal use.
@@ -517,26 +517,26 @@ class MN_emission_line_solver(Solver):
 
         """
         if prior["type"].lower() == "uniform":
-            minimum = prior["params"][0]
-            maximum = prior["params"][1]
+            minimum = float(prior["params"][0])
+            maximum = float(prior["params"][1])
         elif prior["type"].lower() == "loguniform":
             # Set the minimum/maximum value as the edge of the uniform distribution or as a 3σ outlier
-            minimum = 10**(prior["params"][0])
-            maximum = 10**(prior["params"][1])
+            minimum = 10**(float(prior["params"][0]))
+            maximum = 10**(float(prior["params"][1]))
         elif prior["type"].lower() == "normal":
             # Set the minimum/maximum value as the edge of the uniform distribution or as a 3σ outlier
-            minimum = prior["params"][0] - 3 * prior["params"][1]
-            maximum = prior["params"][0] + 3 * prior["params"][1]
+            minimum = float(prior["params"][0]) - 3 * float(prior["params"][1])
+            maximum = float(prior["params"][0]) + 3 * float(prior["params"][1])
         elif prior["type"].lower() == "lognormal":
             # Set the minimum/maximum value as the edge of the uniform distribution or as a 3σ outlier
-            minimum = 10**(prior["params"][0] - 3 * prior["params"][1])
-            maximum = 10**(prior["params"][0] + 3 * prior["params"][1])
+            minimum = 10**(float(prior["params"][0]) - 3 * float(prior["params"][1]))
+            maximum = 10**(float(prior["params"][0]) + 3 * float(prior["params"][1]))
         elif prior["type"].lower() == "gamma":
             minimum = 0
-            maximum = prior["params"][0] * prior["params"][1] + 5 * prior["params"][1]
+            maximum = float(prior["params"][0]) * float(prior["params"][1]) + 5 * float(prior["params"][1])
         elif prior["type"].lower() == "fixed":
-            minimum = prior["params"][0]
-            maximum = prior["params"][0]
+            minimum = float(prior["params"][0])
+            maximum = float(prior["params"][0])
         else:
             raise TypeError("prior type '{}' not recognised".format(prior["type"]))
         
@@ -1206,19 +1206,19 @@ class MN_emission_line_solver(Solver):
         for di in range(len(cube)):
             if self.priors[di]["type"].lower() == "uniform":
                 # Uniform distribution as prior
-                cube[di] = cube[di] * (self.priors[di]["params"][1] - self.priors[di]["params"][0]) + self.priors[di]["params"][0]
+                cube[di] = cube[di] * (float(self.priors[di]["params"][1]) - float(self.priors[di]["params"][0])) + float(self.priors[di]["params"][0])
             elif self.priors[di]["type"].lower() == "loguniform":
                 # Log-uniform distribution as prior
-                cube[di] = 10**(cube[di] * (self.priors[di]["params"][1] - self.priors[di]["params"][0]) + self.priors[di]["params"][0])
+                cube[di] = 10**(cube[di] * (float(self.priors[di]["params"][1]) - float(self.priors[di]["params"][0])) + float(self.priors[di]["params"][0]))
             elif self.priors[di]["type"].lower() == "normal":
                 # Normal distribution as prior
-                cube[di] = norm.ppf(cube[di], loc=self.priors[di]["params"][0], scale=self.priors[di]["params"][1])
+                cube[di] = norm.ppf(cube[di], loc=float(self.priors[di]["params"][0]), scale=float(self.priors[di]["params"][1]))
             elif self.priors[di]["type"].lower() == "lognormal":
                 # Log-normal distribution as prior
-                cube[di] = 10**norm.ppf(cube[di], loc=self.priors[di]["params"][0], scale=self.priors[di]["params"][1])
+                cube[di] = 10**norm.ppf(cube[di], loc=float(self.priors[di]["params"][0]), scale=float(self.priors[di]["params"][1]))
             elif self.priors[di]["type"].lower() == "gamma":
                 # Gamma distribution as prior (prior belief: unlikely to be very high)
-                cube[di] = gamma.ppf(cube[di], a=self.priors[di]["params"][0], loc=0, scale=self.priors[di]["params"][1])
+                cube[di] = gamma.ppf(cube[di], a=float(self.priors[di]["params"][0]), loc=0, scale=float(self.priors[di]["params"][1]))
             else:
                 raise TypeError("prior type '{}' of parameter {:d}, {}, not recognised".format(self.priors[di]["type"], di+1, self.params[di]))
         
