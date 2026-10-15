@@ -22,7 +22,7 @@ def int_to_roman(i):
         count = i // integer
         result.append(numeral * count)
         i -= integer * count
-    return ''.join(result)
+    return "".join(result)
 
 def roman_to_int(n):
     i = result = 0
@@ -48,106 +48,114 @@ lines_lib = [
 
         # Nebular lines: UV (NIII consists of one doublet ground transition and a triplet)
 
-        ("HI",      (1215.6701,),                   "nebular",   "both",         "Lya",              sns.color_palette("Set2", 8)[3],    ('N',),                         ''),
-        ("NV",      (1238.821, 1242.804),           "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[0],    ('N', 'N'),                     ''),
-        ("NIV",     (1483.321, 1486.496),           "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[5],    ('Y', 'S'),                     ''),
-        ("CIV",     (1548.187, 1550.772),           "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[5],    ('N', 'N'),                     ''),
-        ("NeIV",    (1601.452, 1601.614),           "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[5],    ('Y', 'Y'),                     ''),
+        ("HI",      (1215.6701,),                   "nebular",   "both",         "Lya",              sns.color_palette("Set2", 8)[3],    ('N',),                         ""),
+        ("NV",      (1238.821, 1242.804),           "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[0],    ('N', 'N'),                     ""),
+        ("NIV",     (1483.321, 1486.496),           "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[5],    ('Y', 'S'),                     ""),
+        ("CIV",     (1548.187, 1550.772),           "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[5],    ('N', 'N'),                     ""),
+        ("NeIV",    (1601.452, 1601.614),           "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[5],    ('Y', 'Y'),                     ""),
         ("HeII",    (1640.42,),                     "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[0],    ('N',),                         "Mean wavelength of 7 transitions"),
-        ("OIII",    (1660.809, 1666.150),           "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[4],    ('S', 'S'),                     ''),
+        ("OIII",    (1660.809, 1666.150),           "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[4],    ('S', 'S'),                     ""),
+        ("NIV",     (1718.538,),                    "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[5],    ('N',),                         ""),
         ("NIII",    (1746.822, 1748.646, 1749.674, \
-                        1752.160, 1753.995),        "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[4],    ('S', 'S', 'S', 'S', 'S'),      ''),
-        ("SiIII",   (1882.7070, 1892.029),          "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[2],    ('Y', 'S'),                     ''),
-        ("CIII",    (1906.683, 1908.734),           "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[1],    ('Y', 'S'),                     ''),
-        ("NeIV",    (2422.393, 2425.013),           "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[5],    ('Y', 'Y'),                     ''),
-        ("MgII",    (2796.352, 2803.531),           "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[3],    ('N', 'N'),                     ''),
-        ("HeI",     (2945.965,),                    "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[3],    ('N',),                         ''),
+                        1752.160, 1753.995),        "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[4],    ('S', 'S', 'S', 'S', 'S'),      ""),
+        ("SiIII",   (1882.7070, 1892.029),          "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[2],    ('Y', 'S'),                     ""),
+        ("CIII",    (1906.683, 1908.734),           "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[1],    ('Y', 'S'),                     ""),
+        ("NeIV",    (2422.393, 2425.013),           "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[5],    ('Y', 'Y'),                     ""),
+        ("MgII",    (2796.352, 2803.531),           "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[3],    ('N', 'N'),                     ""),
+        ("HeI",     (2945.965,),                    "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[3],    ('N',),                         ""),
         ("HeII",    (3204.0016,),                   "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[3],    ('N',),                         "Mean wavelength of 10 transitions"),
-        ("NeV",     (3426.8640,),                   "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[3],    ('Y',),                         ''),
+        ("NeV",     (3426.8640,),                   "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[3],    ('Y',),                         ""),
 
         # Nebular lines: optical
 
-        ("OII",     (3727.092, 3729.875),           "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[2],    ('Y', 'Y'),                     ''),
-        ("HI",      (3798.987,),                    "nebular",   "emission",     "H10",              sns.color_palette("Set1", 9)[1],    ('N',),                         ''),
-        ("HI",      (3836.485,),                    "nebular",   "emission",     "H9",               sns.color_palette("Set1", 9)[1],    ('N',),                         ''),
-        ("NeIII",   (3869.849, 3968.59),            "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[2],    ('Y', 'Y'),                     ''),
-        ("HeI",     (3889.751,),                    "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[3],    ('N',),                         ''),
-        ("HI",      (3890.166,),                    "nebular",   "emission",     "H8",               sns.color_palette("Set1", 9)[1],    ('N',),                         ''),
-        ("HI",      (3971.198,),                    "nebular",   "emission",     "Hepsilon",         sns.color_palette("Set1", 9)[1],    ('N',),                         ''),
-        ("HI",      (4102.892,),                    "nebular",   "emission",     "Hdelta",           sns.color_palette("Set1", 9)[1],    ('N',),                         ''),
-        ("HI",      (4341.692,),                    "nebular",   "emission",     "Hgamma",           sns.color_palette("Set1", 9)[1],    ('N',),                         ''),
-        ("OIII",    (4364.436,),                    "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[2],    ('Y',),                         ''),
-        ("HeI",     (4472.7675,),                   "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[0],    ('N',),                         ''),
-        ("HeII",    (4687.115,),                    "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[0],    ('N',),                         ''),
-        ("HI",      (4862.71,),                     "nebular",   "emission",     "Hbeta",            sns.color_palette("Set1", 9)[1],    ('N',),                         ''),
-        ("OIII",    (4932.603, 4960.295, 5008.24),  "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[2],    ('Y', 'Y', 'Y'),                ''),
-        ("HeI",     (5877.305,),                    "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[0],    ('N',),                         ''),
-        ("OI",      (6302.046, 6365.536, 6393.50),  "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[1],    ('Y', 'Y', 'Y'),                ''),
-        ("NII",     (6549.861, 6585.273),           "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[0],    ('Y', 'Y'),                     ''),
-        ("HI",      (6564.60,),                     "nebular",   "emission",     "Halpha",           sns.color_palette("Set1", 9)[1],    ('N',),                         ''),
-        ("HeI",     (6679.9950,),                   "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[0],    ('N',),                         ''),
-        ("SII",     (6718.295, 6732.674),           "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[0],    ('Y', 'Y'),                     ''),
-        ("HeI",     (7067.1400,),                   "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[0],    ('N',),                         ''),
-        ("ArIII",   (7137.7570,),                   "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[0],    ('Y',),                         ''),
-        ("OI",      (8448.57, 8448.68, 8449.08),    "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[1],    ('N', 'N', 'N'),                ''),
-        ("SIII",    (9071.10, 9533.20),             "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[0],    ('Y', 'Y'),                     ''),
-        ("HeI",     (10833.3070,),                  "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[0],    ('N',),                         ''),
-        ("HI",      (10052.12,),                    "nebular",   "emission",     "Padelta",          sns.color_palette("Set1", 9)[1],    ('N',),                         ''),
-        ("HI",      (10940.98,),                    "nebular",   "emission",     "Pagamma",          sns.color_palette("Set1", 9)[1],    ('N',),                         ''),
-        ("OI",      (11290.0,),                     "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[1],    ('N',),                         ''),
-        ("HI",      (12821.559,),                   "nebular",   "emission",     "Pabeta",           sns.color_palette("Set1", 9)[1],    ('N',),                         ''),
-        ("HI",      (18756.086,),                   "nebular",   "emission",     "Paalpha",          sns.color_palette("Set1", 9)[1],    ('N',),                         ''),
+        ("OII",     (3727.092, 3729.875),           "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[2],    ('Y', 'Y'),                     ""),
+        ("HI",      (3798.987,),                    "nebular",   "emission",     "H10",              sns.color_palette("Set1", 9)[1],    ('N',),                         ""),
+        ("HI",      (3836.485,),                    "nebular",   "emission",     "H9",               sns.color_palette("Set1", 9)[1],    ('N',),                         ""),
+        ("NeIII",   (3869.849, 3968.59),            "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[2],    ('Y', 'Y'),                     ""),
+        ("HeI",     (3889.751,),                    "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[3],    ('N',),                         ""),
+        ("HI",      (3890.166,),                    "nebular",   "emission",     "H8",               sns.color_palette("Set1", 9)[1],    ('N',),                         ""),
+        ("HI",      (3971.198,),                    "nebular",   "emission",     "Hepsilon",         sns.color_palette("Set1", 9)[1],    ('N',),                         ""),
+        ("HI",      (4102.892,),                    "nebular",   "emission",     "Hdelta",           sns.color_palette("Set1", 9)[1],    ('N',),                         ""),
+        ("HI",      (4341.692,),                    "nebular",   "emission",     "Hgamma",           sns.color_palette("Set1", 9)[1],    ('N',),                         ""),
+        ("OIII",    (4364.436,),                    "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[2],    ('Y',),                         ""),
+        ("HeI",     (4472.7675,),                   "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[0],    ('N',),                         ""),
+        ("HeII",    (4687.115,),                    "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[0],    ('N',),                         ""),
+        ("HI",      (4862.71,),                     "nebular",   "emission",     "Hbeta",            sns.color_palette("Set1", 9)[1],    ('N',),                         ""),
+        ("OIII",    (4932.603, 4960.295, 5008.24),  "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[2],    ('Y', 'Y', 'Y'),                ""),
+        ("HeI",     (5877.305,),                    "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[0],    ('N',),                         ""),
+        ("OI",      (6302.046, 6365.536, 6393.50),  "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[1],    ('Y', 'Y', 'Y'),                ""),
+        ("SIII",    (6313.649,),                    "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[0],    ('Y',),                         ""),
+        ("NII",     (6549.861, 6585.273),           "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[0],    ('Y', 'Y'),                     ""),
+        ("HI",      (6564.60,),                     "nebular",   "emission",     "Halpha",           sns.color_palette("Set1", 9)[1],    ('N',),                         ""),
+        ("HeI",     (6679.9950,),                   "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[0],    ('N',),                         ""),
+        ("SII",     (6718.295, 6732.674),           "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[0],    ('Y', 'Y'),                     ""),
+        ("HeI",     (7067.1400,),                   "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[0],    ('N',),                         ""),
+        ("ArIII",   (7137.7570,),                   "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[0],    ('Y',),                         ""),
+        ("OII",     (7321.094, 7322.1770, \
+                        7331.722, 7332.8080),       "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[1],    ('Y', 'Y', 'Y', 'Y'),           ""),
+        ("OI",      (8448.57, 8448.68, 8449.08),    "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[1],    ('N', 'N', 'N'),                ""),
+        ("SIII",    (9070.048, 9532.252),           "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[0],    ('Y', 'Y'),                     ""),
+        ("CI",      (9826.800, 9852.939),           "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[0],    ('Y', 'Y'),                     ""),
+        ("HI",      (10052.12,),                    "nebular",   "emission",     "Padelta",          sns.color_palette("Set1", 9)[1],    ('N',),                         ""),
+        ("SII",     (10289.549, 10323.317, \
+                        10339.241, 10373.336),      "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[1],    ('Y', 'Y', 'Y', 'Y'),           ""),
+        ("HeI",     (10833.3070,),                  "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[0],    ('N',),                         ""),
+        ("HI",      (10940.98,),                    "nebular",   "emission",     "Pagamma",          sns.color_palette("Set1", 9)[1],    ('N',),                         ""),
+        ("OI",      (11290.0,),                     "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[1],    ('N',),                         ""),
+        ("HI",      (12821.559,),                   "nebular",   "emission",     "Pabeta",           sns.color_palette("Set1", 9)[1],    ('N',),                         ""),
+        ("HI",      (18756.086,),                   "nebular",   "emission",     "Paalpha",          sns.color_palette("Set1", 9)[1],    ('N',),                         ""),
 
-        # Stellar absorption lines
+        # Absorption lines
 
         ("CIII",    (1175.64,),                     "stellar",   "absorption",   None,               sns.color_palette("Set3", 14)[3],   ('N',),                         "Mean wavelength of 6 transitions"),
-        ("OIV",     (1338.615, 1342.990, 1343.514), "stellar",   "absorption",   None,               sns.color_palette("Set3", 14)[9],   ('N', 'N', 'N'),                ''),
-        ("SV",      (1501.763,),                    "stellar",   "absorption",   None,               sns.color_palette("Set3", 14)[7],   ('N',),                         ''),
-
-        # IGM absorption lines
-
-        ("SiII",    (1260.422, 1264.738, 1265.002), "IGM",       "absorption",   None,               sns.color_palette("Set3", 14)[8],   ('N', 'N', 'N'),                ''),
-        ("OI",      (1302.168, 1304.858, 1306.029), "IGM",       "absorption",   None,               sns.color_palette("Set3", 14)[8],   ('N', 'N', 'N'),                ''),
-        ("SiII",    (1304.370, 1309.276),           "IGM",       "absorption",   None,               sns.color_palette("Set3", 14)[8],   ('N', 'N'),                     ''),
-        ("CII",     (1334.532, 1335.662, 1335.707), "IGM",       "absorption",   None,               sns.color_palette("Set3", 14)[11],  ('N', 'N', 'N'),                ''),
-        ("SiII",    (1526.707,),                    "IGM",       "absorption",   None,               sns.color_palette("Set3", 14)[8],   ('N',),                         ''),
+        ("OIV",     (1338.615, 1342.990, 1343.514), "stellar",   "absorption",   None,               sns.color_palette("Set3", 14)[9],   ('N', 'N', 'N'),                ""),
+        ("OV",      (1371.296,),                    "stellar",   "absorption",   None,               sns.color_palette("Set3", 14)[7],   ('N',),                         ""),
+        ("SV",      (1501.763,),                    "stellar",   "absorption",   None,               sns.color_palette("Set3", 14)[7],   ('N',),                         ""),
+        ("SiII",    (1260.422, 1264.738, 1265.002), "ISM",       "absorption",   None,               sns.color_palette("Set3", 14)[8],   ('N', 'N', 'N'),                ""),
+        ("OI",      (1302.168, 1304.858, 1306.029), "ISM",       "absorption",   None,               sns.color_palette("Set3", 14)[8],   ('N', 'N', 'N'),                ""),
+        ("SiII",    (1304.370, 1309.276),           "ISM",       "absorption",   None,               sns.color_palette("Set3", 14)[8],   ('N', 'N'),                     ""),
+        ("CII",     (1334.532, 1335.662, 1335.707), "ISM",       "absorption",   None,               sns.color_palette("Set3", 14)[11],  ('N', 'N', 'N'),                ""),
+        ("SiIV",    (1393.7550, 1402.770),          "ISM",       "absorption",   None,               sns.color_palette("Set3", 14)[8],   ('N', 'N'),                     ""),
+        ("SiII",    (1526.707,),                    "ISM",       "absorption",   None,               sns.color_palette("Set3", 14)[8],   ('N',),                         ""),
+        ("FeII",    (1608.451,),                    "ISM",       "absorption",   None,               sns.color_palette("Set3", 14)[11],  ('N',),                         ""),
+        ("AlII",    (1670.7870,),                   "ISM",       "absorption",   None,               sns.color_palette("Set3", 14)[11],  ('N',),                         ""),
 
         # Far-infrared fine-structure coolant lines (numerical values in micron, equivalent to 10000 Angstrom)
 
-        ("OIII",    (51.81454500e4,),               "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[3],    ('Y',),                         ''),
-        ("NIII",    (57.33945000e4,),               "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[1],    ('Y',),                         ''),
-        ("OI",      (63.18516400e4,),               "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[4],    ('Y',),                         ''),
-        ("OIII",    (88.35639400e4,),               "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[0],    ('Y',),                         ''),
-        ("NII",     (121.8026800e4,),               "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[5],    ('Y',),                         ''),
-        ("OI",      (145.53498700e4,),              "nebular",   "emission",     None,               sns.color_palette("Set3", 14)[8],   ('Y',),                         ''),
-        ("CII",     (157.73617000e4,),              "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[2],    ('Y',),                         ''),
-        ("NII",     (205.33880900e4,),              "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[1],    ('Y',),                         ''),
-        ("CI",      (370.41152700e4,),              "nebular",   "emission",     None,               sns.color_palette("Set3", 14)[3],   ('Y',),                         ''),
-        ("CI",      (609.12468800e4,),              "nebular",   "emission",     None,               sns.color_palette("Set3", 14)[11],  ('Y',),                         ''),
+        ("OIII",    (51.81454500e4,),               "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[3],    ('Y',),                         ""),
+        ("NIII",    (57.33945000e4,),               "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[1],    ('Y',),                         ""),
+        ("OI",      (63.18516400e4,),               "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[4],    ('Y',),                         ""),
+        ("OIII",    (88.35639400e4,),               "nebular",   "emission",     None,               sns.color_palette("Set1", 9)[0],    ('Y',),                         ""),
+        ("NII",     (121.8026800e4,),               "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[5],    ('Y',),                         ""),
+        ("OI",      (145.53498700e4,),              "nebular",   "emission",     None,               sns.color_palette("Set3", 14)[8],   ('Y',),                         ""),
+        ("CII",     (157.73617000e4,),              "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[2],    ('Y',),                         ""),
+        ("NII",     (205.33880900e4,),              "nebular",   "emission",     None,               sns.color_palette("Set2", 8)[1],    ('Y',),                         ""),
+        ("CI",      (370.41152700e4,),              "nebular",   "emission",     None,               sns.color_palette("Set3", 14)[3],   ('Y',),                         ""),
+        ("CI",      (609.12468800e4,),              "nebular",   "emission",     None,               sns.color_palette("Set3", 14)[11],  ('Y',),                         ""),
 
         # Far-infrared molecular lines (numerical values in micron, equivalent to 10000 Angstrom)
 
-        ("CO1-0",   (2601e4,),                      "molecular", "emission",     None,               sns.color_palette("Set3", 14)[0],   ('N',),                         ''),
-        ("CO2-1",   (1300e4,),                      "molecular", "emission",     None,               sns.color_palette("Set3", 14)[1],   ('N',),                         ''),
-        ("CO3-2",   (867e4,),                       "molecular", "emission",     None,               sns.color_palette("Set3", 14)[2],   ('N',),                         ''),
-        ("CO4-3",   (650.3e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[3],   ('N',),                         ''),
-        ("CO5-4",   (520.2e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[4],   ('N',),                         ''),
-        ("CO6-5",   (433.6e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[5],   ('N',),                         ''),
-        ("CO7-6",   (371.7e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[6],   ('N',),                         ''),
-        ("CO8-7",   (325.2e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[7],   ('N',),                         ''),
-        ("CO9-8",   (289.1e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[8],   ('N',),                         ''),
-        ("CO10-9",  (260.2e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[9],   ('N',),                         ''),
+        ("CO1-0",   (2601e4,),                      "molecular", "emission",     None,               sns.color_palette("Set3", 14)[0],   ('N',),                         ""),
+        ("CO2-1",   (1300e4,),                      "molecular", "emission",     None,               sns.color_palette("Set3", 14)[1],   ('N',),                         ""),
+        ("CO3-2",   (867e4,),                       "molecular", "emission",     None,               sns.color_palette("Set3", 14)[2],   ('N',),                         ""),
+        ("CO4-3",   (650.3e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[3],   ('N',),                         ""),
+        ("CO5-4",   (520.2e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[4],   ('N',),                         ""),
+        ("CO6-5",   (433.6e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[5],   ('N',),                         ""),
+        ("CO7-6",   (371.7e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[6],   ('N',),                         ""),
+        ("CO8-7",   (325.2e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[7],   ('N',),                         ""),
+        ("CO9-8",   (289.1e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[8],   ('N',),                         ""),
+        ("CO10-9",  (260.2e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[9],   ('N',),                         ""),
 
-        ("HCN1-0",  (3383e4,),                      "molecular", "emission",     None,               sns.color_palette("Set3", 14)[0],   ('N',),                         ''),
-        ("HCN2-1",  (1691e4,),                      "molecular", "emission",     None,               sns.color_palette("Set3", 14)[1],   ('N',),                         ''),
-        ("HCN3-2",  (1128e4,),                      "molecular", "emission",     None,               sns.color_palette("Set3", 14)[2],   ('N',),                         ''),
-        ("HCN4-3",  (845.7e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[3],   ('N',),                         ''),
-        ("HCN5-4",  (676.5e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[4],   ('N',),                         ''),
-        ("HCN6-5",  (563.8e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[5],   ('N',),                         ''),
-        ("HCN7-6",  (483.3e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[6],   ('N',),                         ''),
-        ("HCN8-7",  (422.9e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[7],   ('N',),                         ''),
-        ("HCN9-8",  (375.9e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[8],   ('N',),                         ''),
-        ("HCN10-9", (338.4e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[9],   ('N',),                         ''),
+        ("HCN1-0",  (3383e4,),                      "molecular", "emission",     None,               sns.color_palette("Set3", 14)[0],   ('N',),                         ""),
+        ("HCN2-1",  (1691e4,),                      "molecular", "emission",     None,               sns.color_palette("Set3", 14)[1],   ('N',),                         ""),
+        ("HCN3-2",  (1128e4,),                      "molecular", "emission",     None,               sns.color_palette("Set3", 14)[2],   ('N',),                         ""),
+        ("HCN4-3",  (845.7e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[3],   ('N',),                         ""),
+        ("HCN5-4",  (676.5e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[4],   ('N',),                         ""),
+        ("HCN6-5",  (563.8e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[5],   ('N',),                         ""),
+        ("HCN7-6",  (483.3e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[6],   ('N',),                         ""),
+        ("HCN8-7",  (422.9e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[7],   ('N',),                         ""),
+        ("HCN9-8",  (375.9e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[8],   ('N',),                         ""),
+        ("HCN10-9", (338.4e4,),                     "molecular", "emission",     None,               sns.color_palette("Set3", 14)[9],   ('N',),                         ""),
         
         # Unknown/miscellaneous lines
 
@@ -249,7 +257,7 @@ class line:
 
         self.get_line_info(wl_A)
 
-        self.name = self.species + ("{:d}".format(self.wl_nat) if self.wl_nat != -1 else '')
+        self.name = self.species + ("{:d}".format(self.wl_nat) if self.wl_nat != -1 else "")
         self.names = [self.species + ("{:d}".format(int(round(wl))) if not np.isnan(wl) else "NaN") for wl in self.wls_nat]
         
         self.set_labels()
@@ -298,7 +306,7 @@ class line:
 
             # Change alt_name to normal name if None
             self.alt_name = self.name
-            alt_str = ''
+            alt_str = ""
         
         if self.wl_unit == "Angstrom":
             wl_val = self.wl
@@ -323,22 +331,22 @@ class line:
         # Quasi-extended label for all lines collectively, but only one (average) wavelength (fancy, simple text, and simple for use in \mathrm{})
         self.qflabel = self.flabel + r" ${}{:{wlf}} \, \mathrm{{ {} }}$".format(texsymb, wl_val, texunit, wlf=wlf)
         self.qstlabel = self.stlabel + r" {}{:{wlf}} {}".format(txtsymb, wl_val, txtunit, wlf=wlf)
-        self.qsmlabel = self.smlabel + r"\, {}{}{:{wlf}} \, {}".format(txtsymb, r"\, " if txtsymb else r'', wl_val, texunit, wlf=wlf)
+        self.qsmlabel = self.smlabel + r"\, {}{}{:{wlf}} \, {}".format(txtsymb, r"\, " if txtsymb else r"", wl_val, texunit, wlf=wlf)
         
         # Extended label for all lines collectively (fancy, simple text, and simple for use in \mathrm{})
         self.eflabel = self.flabel + r" ${}".format(texsymb) + r", \, ".join(r"{:{wlf}}".format(wl, wlf=wlf) for wl in wls_val) + r" \, \mathrm{{ {} }}$".format(texunit)
         self.estlabel = self.stlabel + r" {}".format(txtsymb) + r", ".join(r"{:{wlf}}".format(wl, wlf=wlf) for wl in wls_val) + r" {}".format(txtunit)
-        self.esmlabel = self.smlabel + r"\, {}{}".format(txtsymb, r"\, " if txtsymb else r'') + r", \, ".join(r"{:{wlf}}".format(wl, wlf=wlf) for wl in wls_val) + r" \, {}".format(texunit)
+        self.esmlabel = self.smlabel + r"\, {}{}".format(txtsymb, r"\, " if txtsymb else r"") + r", \, ".join(r"{:{wlf}}".format(wl, wlf=wlf) for wl in wls_val) + r" \, {}".format(texunit)
         
         # Extended labels for each line individually (fancy, simple text, and simple for use in \mathrm{})
-        self.eflabels = [r"$\mathrm{{{} {} \, {} {}}}$".format('[' if self.forb_line[wli] == 'Y' else '',
-                            particle, descr, '' if self.forb_line[wli] == 'N' else ']') + \
+        self.eflabels = [r"$\mathrm{{{} {} \, {} {}}}$".format("[" if self.forb_line[wli] == 'Y' else "",
+                            particle, descr, "" if self.forb_line[wli] == 'N' else "]") + \
                             r"$\, {}{:{wlf}} \, \mathrm{{ {} }}$".format(texsymb, wl, texunit, wlf=wlf) for wli, wl in enumerate(wls_val)]
-        self.estlabels = [r"{}{} {}{}".format('[' if self.forb_line[wli] == 'Y' else '',
-                            particle, descr, '' if self.forb_line[wli] == 'N' else ']') + \
+        self.estlabels = [r"{}{} {}{}".format("[" if self.forb_line[wli] == 'Y' else "",
+                            particle, descr, "" if self.forb_line[wli] == 'N' else "]") + \
                             r" λ {:{wlf}} {}".format(wl, txtunit, wlf=wlf) for wli, wl in enumerate(wls_val)]
-        self.esmlabels = [r"{}{} \, {}{}".format('[' if self.forb_line[wli] == 'Y' else '',
-                            particle, descr, '' if self.forb_line[wli] == 'N' else ']') + \
+        self.esmlabels = [r"{}{} \, {}{}".format("[" if self.forb_line[wli] == 'Y' else "",
+                            particle, descr, "" if self.forb_line[wli] == 'N' else "]") + \
                             r" \, λ \, {:{wlf}} \, {}".format(wl, texunit, wlf=wlf) for wli, wl in enumerate(wls_val)]
 
         self.name_str = self.lpar + particle + ' ' + descr + self.rpar + ' ' + \
@@ -347,7 +355,7 @@ class line:
     
     def get_line_info(self, wl_A=None):
         # List of Species, Wavelength(s), Origin, Kind, Alternative names, Color, Forbidden line?
-        species_list = lines_dict.get(self.species, [((np.nan,), "N/A", "N/A", None, 'k', ('N',))])
+        species_list = lines_dict.get(self.species, [((np.nan,), "N/A", "N/A", None, "k", ('N',))])
         n_lines = len(species_list)
         
         if n_lines == 1:
@@ -416,14 +424,14 @@ class line:
             self.forb_line = np.array([self.forb_line[self.line_i]] if isinstance(self.line_i, int) else [self.forb_line[line_i] for line_i in self.line_i])
 
         if np.all(self.forb_line == 'Y'):
-            self.lpar = '['
-            self.rpar = ']'
+            self.lpar = "["
+            self.rpar = "]"
         elif np.all(self.forb_line == 'N'):
-            self.lpar = ''
-            self.rpar = ''
+            self.lpar = ""
+            self.rpar = ""
         else:
-            self.lpar = ''
-            self.rpar = ']'
+            self.lpar = ""
+            self.rpar = "]"
 
     def __repr__(self):
         if self.atomic:
@@ -453,8 +461,8 @@ class line_list(line):
 if __name__ == "__main__":
     ll = line_list([line(*args) for args in all_lines_lib])
     print("Lines in library (arguments and line info):\n", "Ion\tWavelength (Å)\tFrequency (GHz)\tInfo",
-            *["{}\t{}\t\t{}\t\t{}".format(args[0], args[1], "{:.1f}".format(float(line(args[0], args[1]).nu/1e9)) if args[1] > 1e4 else '',
-                                            line(args[0], args[1])) for args in all_lines_lib], sep='\n')
+            *["{}\t{}\t\t{}\t\t{}".format(args[0], args[1], "{:.1f}".format(float(line(args[0], args[1]).nu/1e9)) if args[1] > 1e4 else "",
+                                            line(args[0], args[1])) for args in all_lines_lib], sep="\n")
     print("\nLines in library (name and colour):\n", "Ion\tWavelength (Å)\tColour",
-            *["{}\t{}\t\t#{:02x}{:02x}{:02x}".format(*args, *[int(c*255) for c in line(*args).colour]) for args in all_lines_lib], sep='\n')
-    print("Examples of line objects:", line("CIII", 1908), line("OII", 3728), line("SiIII", 1887), line(), '', sep='\n')
+            *["{}\t{}\t\t#{:02x}{:02x}{:02x}".format(*args, *[int(c*255) for c in line(*args).colour]) for args in all_lines_lib], sep="\n")
+    print("Examples of line objects:", line("CIII", 1908), line("OII", 3728), line("SiIII", 1887), line(), "", sep="\n")
